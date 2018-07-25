@@ -4,7 +4,7 @@
     "repository": "https://github.com/ymtszw/elm-broker.git",
     "license": "BSD3",
     "source-directories": [
-        "."
+        "src"
     ],
     "exposed-modules": ["Broker"],
     "dependencies": {
