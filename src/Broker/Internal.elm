@@ -1,4 +1,4 @@
-module Broker.Internal exposing (Segments, Config, config, Cycle, cycle, SegmentIndex, segmentIndex, InnerOffset, innerOffset, initSegments)
+module Broker.Internal exposing (Segments, Config, config, Cycle, cycle, SegmentIndex, segmentIndex, InnerOffset, innerOffset, initSegments, capacity)
 
 import Array exposing (Array)
 
@@ -120,3 +120,8 @@ initSegments (Config (NumSegments numSegmentsInt) (SegmentSize segmentSizeInt)) 
 
                 _ ->
                     Nothing
+
+
+capacity : Config -> Int
+capacity (Config (NumSegments numSegments) (SegmentSize segmentSize)) =
+    numSegments * segmentSize

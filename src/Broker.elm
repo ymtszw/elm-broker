@@ -1,4 +1,4 @@
-module Broker exposing (Broker, Offset, initialize)
+module Broker exposing (Broker, Offset, initialize, capacity)
 
 {-| Apache Kafka-inspired timeseries data container.
 
@@ -10,11 +10,11 @@ module Broker exposing (Broker, Offset, initialize)
 
 # APIs
 
-@docs initialize
+@docs initialize, capacity
 
 -}
 
-import Broker.Internal exposing (..)
+import Broker.Internal as I
 
 
 -- TYPES
@@ -24,11 +24,11 @@ import Broker.Internal exposing (..)
 -}
 type Broker a
     = Broker
-        { config : Config
-        , segments : Segments a
-        , cycle : Cycle
-        , segmentIndex : SegmentIndex
-        , innerOffset : InnerOffset
+        { config : I.Config
+        , segments : I.Segments a
+        , cycle : I.Cycle
+        , segmentIndex : I.SegmentIndex
+        , innerOffset : I.InnerOffset
         }
 
 
@@ -39,9 +39,9 @@ If the Broker's Config is altered AFTER the Offset was recorded (re-initialized)
 -}
 type Offset
     = Offset
-        { cycle : Cycle
-        , segmentIndex : SegmentIndex
-        , innerOffset : InnerOffset
+        { cycle : I.Cycle
+        , segmentIndex : I.SegmentIndex
+        , innerOffset : I.InnerOffset
         }
 
 
@@ -49,18 +49,25 @@ type Offset
 -- APIS
 
 
-{-| Initialize a Broker with a Config.
+{-| Initializes a Broker with a Config.
 -}
 initialize : Int -> Int -> Broker a
 initialize rawNumSegments rawSegmentSize =
     let
         config_ =
-            config rawNumSegments rawSegmentSize
+            I.config rawNumSegments rawSegmentSize
     in
         Broker
             { config = config_
-            , segments = initSegments config_
-            , cycle = cycle 0
-            , segmentIndex = segmentIndex config_ 0
-            , innerOffset = innerOffset config_ 0
+            , segments = I.initSegments config_
+            , cycle = I.cycle 0
+            , segmentIndex = I.segmentIndex config_ 0
+            , innerOffset = I.innerOffset config_ 0
             }
+
+
+{-| Returns capacity (number of possible elements) of the Broker.
+-}
+capacity : Broker a -> Int
+capacity (Broker { config }) =
+    I.capacity config
