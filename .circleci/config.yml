@@ -10,7 +10,8 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-          - v8-dependencies-{{ checksum "elm-package.json" }}
+          - v8-dependencies-{{ .Branch }}-{{ .Revision }}
+          - v8-dependencies-{{ .Branch }}-
           - v8-dependencies-
       - run: ./.circleci/ensure_libsysconfcpus.sh
       - run: npm install -g elm elm-test
@@ -20,10 +21,9 @@ jobs:
           paths:
             - ~/.npm-global
             - sysconfcpus
-            - node_modules
             - elm-stuff
             - tests/elm-stuff
-          key: v8-dependencies-{{ checksum "package.json" }}-{{ checksum "elm-package.json" }}
+          key: v8-dependencies-{{ .Branch }}-{{ .Revision }}
 
 workflows:
   version: 2
