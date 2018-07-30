@@ -4,18 +4,23 @@ jobs:
     docker:
       - image: circleci/node:8
     working_directory: ~/repo
+    environment:
+      BASH_ENV: ~/.bashrc
     steps:
+      - run: echo 'export PATH=~/.npm-global/bin:$PATH' >> $BASH_ENV
+      - run: echo 'export NPM_CONFIG_PREFIX=~/.npm-global' >> $BASH_ENV
       - checkout
       - restore_cache:
           keys:
           - v8-dependencies-{{ checksum "elm-package.json" }}
           - v8-dependencies-
       - run: ./.circleci/ensure_libsysconfcpus.sh
-      - run: npm install
+      - run: npm install -g elm elm-test
       - run: ./.circleci/replace_elm_make.sh
-      - run: npm test
+      - run: elm-test
       - save_cache:
           paths:
+            - ~/.npm-global
             - sysconfcpus
             - node_modules
             - elm-stuff

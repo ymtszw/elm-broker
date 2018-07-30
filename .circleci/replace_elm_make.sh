@@ -4,15 +4,15 @@
 # Using rather unsafe `pwd` since $HOME is unavailable in CircleCI
 set -euo pipefail
 ncore=${1:-1}
-if ! grep "sysconfcpus -n ${ncore}" "$(npm bin)/elm-make"; then
-  if [ ! -f "$(npm bin)/elm-make-old" ]; then
-    mv "$(npm bin)/elm-make" "$(npm bin)/elm-make-old"
+if ! grep "sysconfcpus -n ${ncore}" "$(npm config get prefix)/elm-make"; then
+  if [ ! -f "$(npm config get prefix)/elm-make-old" ]; then
+    mv "$(npm config get prefix)/elm-make" "$(npm config get prefix)/elm-make-old"
   fi
-  cat << EOF > "$(npm bin)/elm-make"
+  cat << EOF > "$(npm config get prefix)/elm-make"
 #!/usr/bin/env bash
 set -eu
 echo "Running elm-make with sysconfcpus -n ${ncore}"
-$(pwd)/sysconfcpus/bin/sysconfcpus -n ${ncore} "$(npm bin)/elm-make-old" "\$@"
+$(pwd)/sysconfcpus/bin/sysconfcpus -n ${ncore} "$(npm config get prefix)/elm-make-old" "\$@"
 EOF
-  chmod +x "$(npm bin)/elm-make"
+  chmod +x "$(npm config get prefix)/elm-make"
 fi
