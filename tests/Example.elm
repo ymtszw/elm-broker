@@ -23,23 +23,33 @@ suite =
         , describe "append should work indefinitely"
             [ test "up to the capacity of the Broker" <|
                 \_ ->
-                    List.repeat 200 "item"
-                        |> List.foldl (\item broker -> Broker.append item broker) (Broker.initialize 2 100)
+                    Broker.initialize 2 100
+                        |> appendUpto 200 "item"
                         |> Expect.all
                             [ Broker.capacity >> Expect.equal 200
                             , Broker.isEmpty >> Expect.false "Expected Broker is not empty"
-                            , Broker.oldestReadableOffset >> Maybe.map Broker.offsetToString >> Expect.equal (Just "000000000000000")
-                            , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal "000000010000000"
+                            , Broker.oldestReadableOffset >> Maybe.map Broker.offsetToString >> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+                            , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00000001" ++ "00" ++ "00000")
                             ]
-            , test "above significantly more than the capacity of the Broker" <|
+            , test "above significantly more than the capacity of the Broker (takes around 100s)" <|
                 \_ ->
-                    List.repeat 12345678 "item"
-                        |> List.foldl (\item broker -> Broker.append item broker) (Broker.initialize 2 100)
+                    Broker.initialize 2 100
+                        |> appendUpto 123456789 "item"
                         |> Expect.all
                             [ Broker.capacity >> Expect.equal 200
                             , Broker.isEmpty >> Expect.false "Expected Broker is not empty"
-                            , Broker.oldestReadableOffset >> Maybe.map Broker.offsetToString >> Expect.equal (Just "0000f11f000004e")
-                            , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal "0000f120000004e"
+                            , Broker.oldestReadableOffset >> Maybe.map Broker.offsetToString >> Expect.equal (Just ("00096b42" ++ "01" ++ "00059"))
+                            , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00096b43" ++ "01" ++ "00059")
                             ]
             ]
         ]
+
+
+appendUpto : Int -> a -> Broker.Broker a -> Broker.Broker a
+appendUpto count item broker =
+    if count <= 0 then
+        broker
+    else
+        broker
+            |> Broker.append item
+            |> appendUpto (count - 1) item
