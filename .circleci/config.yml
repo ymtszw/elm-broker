@@ -1,0 +1,29 @@
+version: 2
+jobs:
+  node8:
+    docker:
+      - image: circleci/node:8
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+          - v8-dependencies-{{ checksum "elm-package.json" }}
+          - v8-dependencies-
+      - run: ./.circleci/ensure_libsysconfcpus.sh
+      - run: npm install
+      - run: ./.circleci/replace_elm_make.sh
+      - run: npm test
+      - save_cache:
+          paths:
+            - sysconfcpus
+            - node_modules
+            - elm-stuff
+            - tests/elm-stuff
+          key: v8-dependencies-{{ checksum "package.json" }}-{{ checksum "elm-package.json" }}
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - node8
