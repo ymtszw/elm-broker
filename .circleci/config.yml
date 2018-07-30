@@ -4,8 +4,6 @@ jobs:
     docker:
       - image: circleci/node:8
     working_directory: ~/repo
-    environment:
-      BASH_ENV: ~/.bashrc
     steps:
       - run: echo 'export PATH=~/.npm-global/bin:$PATH' >> $BASH_ENV
       - run: echo 'export NPM_CONFIG_PREFIX=~/.npm-global' >> $BASH_ENV
