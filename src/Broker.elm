@@ -1,16 +1,32 @@
-module Broker exposing (Broker, Offset, initialize, capacity)
+module Broker
+    exposing
+        ( Broker
+        , Offset
+        , initialize
+        , append
+        , capacity
+        , isEmpty
+        , oldestReadableOffset
+        , nextOffsetToWrite
+        , offsetToString
+        )
 
 {-| Apache Kafka-inspired timeseries data container.
 
 
-# Types
+## Types
 
 @docs Broker, Offset
 
 
-# APIs
+## APIs
 
-@docs initialize, capacity
+@docs initialize, append
+
+
+## Monitoring means
+
+@docs capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString
 
 -}
 
@@ -34,15 +50,11 @@ type Broker a
 
 {-| Global offset within a Broker.
 
-If the Broker's Config is altered AFTER the Offset was recorded (re-initialized),
+Offset itself can live independently from its generating Broker.
 
 -}
 type Offset
-    = Offset
-        { cycle : I.Cycle
-        , segmentIndex : I.SegmentIndex
-        , innerOffset : I.InnerOffset
-        }
+    = Offset ( I.Cycle, I.SegmentIndex, I.InnerOffset ) -- Internal type is represented as tuple for easier pattern match.
 
 
 
@@ -71,3 +83,41 @@ initialize rawNumSegments rawSegmentSize =
 capacity : Broker a -> Int
 capacity (Broker { config }) =
     I.capacity config
+
+
+{-| Returns whether a Broker is empty or not.
+-}
+isEmpty : Broker a -> Bool
+isEmpty (Broker broker) =
+    I.isEmpty broker
+
+
+{-| Append an item to a Broker.
+-}
+append : a -> Broker a -> Broker a
+append element (Broker broker) =
+    Broker (I.append element broker)
+
+
+{-| Returns an oldest readable Offset of a Broker. Items older than this Offset are already evicted.
+
+If the Broker is yet empty, returns Nothing.
+
+-}
+oldestReadableOffset : Broker a -> Maybe Offset
+oldestReadableOffset (Broker broker) =
+    I.oldestReadableOffset broker |> Maybe.map Offset
+
+
+{-| Returns an Offset that next item will be written to.
+-}
+nextOffsetToWrite : Broker a -> Offset
+nextOffsetToWrite (Broker { cycle, segmentIndex, innerOffset }) =
+    Offset ( cycle, segmentIndex, innerOffset )
+
+
+{-| Converts an Offset into a sortable String representation.
+-}
+offsetToString : Offset -> String
+offsetToString (Offset offset) =
+    I.offsetToString offset
