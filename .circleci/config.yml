@@ -1,32 +1,25 @@
 version: 2
 jobs:
-  node8:
+  test:
     docker:
-      - image: circleci/node:8
+      - image: ymtszw/elm_for_ci
     working_directory: ~/repo
     steps:
-      - run: echo 'export PATH=~/.npm-global/bin:$PATH' >> $BASH_ENV
-      - run: echo 'export NPM_CONFIG_PREFIX=~/.npm-global' >> $BASH_ENV
       - checkout
       - restore_cache:
           keys:
-          - v8-dependencies-{{ .Branch }}-{{ .Revision }}
-          - v8-dependencies-{{ .Branch }}-
-          - v8-dependencies-
-      - run: ./.circleci/ensure_libsysconfcpus.sh
-      - run: npm install -g elm elm-test
-      - run: ./.circleci/replace_elm_make.sh
+          - elm-stuff-{{ .Branch }}-{{ .Revision }}
+          - elm-stuff-{{ .Branch }}-
+          - elm-stuff-
       - run: elm-test
       - save_cache:
           paths:
-            - ~/.npm-global
-            - sysconfcpus
             - elm-stuff
             - tests/elm-stuff
-          key: v8-dependencies-{{ .Branch }}-{{ .Revision }}
+          key: elm-stuff-{{ .Branch }}-{{ .Revision }}
 
 workflows:
   version: 2
   build:
     jobs:
-      - node8
+      - test
