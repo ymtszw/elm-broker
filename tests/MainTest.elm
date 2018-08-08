@@ -1,4 +1,4 @@
-module Example exposing (..)
+module MainTest exposing (..)
 
 import Expect exposing (Expectation)
 import Test exposing (..)
@@ -36,14 +36,6 @@ suite =
                         |> Expect.all
                             [ oldestReadableOffsetInString >> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
                             , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00000001" ++ "01" ++ "00000")
-                            ]
-            , test "above significantly more than the capacity of the Broker (takes around 100s)" <|
-                \_ ->
-                    Broker.initialize 2 100
-                        |> appendUpto 123456789 "item"
-                        |> Expect.all
-                            [ oldestReadableOffsetInString >> Expect.equal (Just ("00096b42" ++ "01" ++ "00000"))
-                            , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00096b43" ++ "01" ++ "00059")
                             ]
             ]
         , describe "oldestReadableOffset should be down to fading segment (200 capacity)"
