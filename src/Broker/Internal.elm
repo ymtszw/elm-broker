@@ -34,7 +34,9 @@ type alias BrokerInternal a =
 
 
 type alias Segments a =
-    Array (Segment a)
+    { active : Array (Segment a)
+    , fading : Maybe (Segment a)
+    }
 
 
 
@@ -169,7 +171,9 @@ innerOffset (Config _ (SegmentSize segmentSize)) raw =
 
 initSegments : Config -> Segments a
 initSegments (Config (NumSegments numSegments) (SegmentSize segmentSize)) =
-    Array.initialize numSegments (always NotInitialized)
+    { active = Array.initialize numSegments (always NotInitialized)
+    , fading = Nothing
+    }
 
 
 capacity : Config -> Int
@@ -218,24 +222,41 @@ incrementOffset (Config (NumSegments numSegments) (SegmentSize segmentSize)) (Cy
         ( Cycle (currentCycle + 1), SegmentIndex 0, InnerOffset 0 )
 
 
+{-| Set a value in Segments at an Offset. If the Offset is stepping into next SegmentIndex, evict the old Segment.
+
+The evicted Segment will enter "fading" state, and currently-"fading" Segment will be gone.
+
+In future, "fading" Segment may be applied to "onEvicted" callback which can be given by users,
+allowing custom handling of old data (e.g. dump to IndexedDB, upload to somewhere, etc.)
+
+-}
 setInSegments : Config -> SegmentIndex -> InnerOffset -> a -> Segments a -> Segments a
-setInSegments (Config _ segmentSize) (SegmentIndex segmentIndex) (InnerOffset innerOffset) item segments =
+setInSegments (Config _ segmentSize) (SegmentIndex segmentIndex) (InnerOffset innerOffset) item ({ active, fading } as segments) =
     let
-        newSegment =
-            case Array.get segmentIndex segments of
-                Just (Segment segment) ->
-                    Segment <| Array.set innerOffset (Item item) segment
-
-                Just NotInitialized ->
-                    -- Lazily initialize a segment.
-                    -- Must be: innerOffset == 0
-                    initSegmentWithFirstItem segmentSize item
-
-                Nothing ->
-                    -- segmentIndex out of bound, this should not happen
-                    initSegmentWithFirstItem segmentSize item
+        setActive newSegment ({ active } as segments) =
+            { segments | active = Array.set segmentIndex newSegment active }
     in
-        Array.set segmentIndex newSegment segments
+        case Array.get segmentIndex active of
+            Just ((Segment segment) as oldSegment) ->
+                -- Segment exists, either already initialized, or stepped into existing one after full Cycle
+                if innerOffset == 0 then
+                    -- Stepped into next Segment, so evict old one
+                    -- At this moment previously "faded" Segment will be gone
+                    { segments | fading = Just oldSegment }
+                        |> setActive (initSegmentWithFirstItem segmentSize item)
+                else
+                    setActive (Segment (Array.set innerOffset (Item item) segment)) segments
+
+            Just NotInitialized ->
+                -- Lazily initialize a segment.
+                -- Must be: innerOffset == 0
+                segments
+                    |> setActive (initSegmentWithFirstItem segmentSize item)
+
+            Nothing ->
+                -- segmentIndex out of bound, this should not happen
+                segments
+                    |> setActive (initSegmentWithFirstItem segmentSize item)
 
 
 initSegmentWithFirstItem : SegmentSize -> a -> Segment a
@@ -253,7 +274,7 @@ initSegmentWithFirstItem (SegmentSize segmentSize) item =
 
 isEmpty : BrokerInternal a -> Bool
 isEmpty { segments } =
-    case Array.get 0 segments of
+    case Array.get 0 segments.active of
         Just NotInitialized ->
             True
 
@@ -265,8 +286,14 @@ isEmpty { segments } =
             True
 
 
+{-| Returns oldest readable Offset.
+
+When Cycle is renewed, old Segments will enter "fading" state one by one.
+"Fading" Segment is readable, but not updatable.
+
+-}
 oldestReadableOffset : BrokerInternal a -> Maybe ( Cycle, SegmentIndex, InnerOffset )
-oldestReadableOffset ({ cycle, segmentIndex, innerOffset } as broker) =
+oldestReadableOffset ({ cycle, segmentIndex } as broker) =
     if isEmpty broker then
         Nothing
     else
@@ -276,7 +303,7 @@ oldestReadableOffset ({ cycle, segmentIndex, innerOffset } as broker) =
 
             Cycle pos ->
                 -- Negative cycle should not happen
-                Just ( Cycle (pos - 1), segmentIndex, innerOffset )
+                Just ( Cycle (pos - 1), segmentIndex, InnerOffset 0 )
 
 
 offsetToString : ( Cycle, SegmentIndex, InnerOffset ) -> String

@@ -26,21 +26,38 @@ suite =
                     Broker.initialize 2 100
                         |> appendUpto 200 "item"
                         |> Expect.all
-                            [ Broker.capacity >> Expect.equal 200
-                            , Broker.isEmpty >> Expect.false "Expected Broker is not empty"
-                            , Broker.oldestReadableOffset >> Maybe.map Broker.offsetToString >> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+                            [ oldestReadableOffsetInString >> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
                             , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00000001" ++ "00" ++ "00000")
+                            ]
+            , test "up to second cycle" <|
+                \_ ->
+                    Broker.initialize 2 100
+                        |> appendUpto 300 "item"
+                        |> Expect.all
+                            [ oldestReadableOffsetInString >> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
+                            , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00000001" ++ "01" ++ "00000")
                             ]
             , test "above significantly more than the capacity of the Broker (takes around 100s)" <|
                 \_ ->
                     Broker.initialize 2 100
                         |> appendUpto 123456789 "item"
                         |> Expect.all
-                            [ Broker.capacity >> Expect.equal 200
-                            , Broker.isEmpty >> Expect.false "Expected Broker is not empty"
-                            , Broker.oldestReadableOffset >> Maybe.map Broker.offsetToString >> Expect.equal (Just ("00096b42" ++ "01" ++ "00059"))
+                            [ oldestReadableOffsetInString >> Expect.equal (Just ("00096b42" ++ "01" ++ "00000"))
                             , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00096b43" ++ "01" ++ "00059")
                             ]
+            ]
+        , describe "oldestReadableOffset should be down to fading segment (200 capacity)"
+            [ test "not appended" <| \_ -> Broker.initialize 2 100 |> oldestReadableOffsetInString |> Expect.equal Nothing
+            , test "append 1 time" <| \_ -> Broker.initialize 2 100 |> appendUpto 1 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+            , test "append 199 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 199 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+            , test "append 200 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 200 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+            , test "append 201 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 201 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+            , test "append 299 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 299 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+            , test "append 300 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 300 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
+            , test "append 301 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 301 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
+            , test "append 399 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 399 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
+            , test "append 400 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 400 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "00" ++ "00000"))
+            , test "append 401 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 401 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "00" ++ "00000"))
             ]
         ]
 
@@ -53,3 +70,8 @@ appendUpto count item broker =
         broker
             |> Broker.append item
             |> appendUpto (count - 1) item
+
+
+oldestReadableOffsetInString : Broker.Broker a -> Maybe String
+oldestReadableOffsetInString =
+    Broker.oldestReadableOffset >> Maybe.map Broker.offsetToString
