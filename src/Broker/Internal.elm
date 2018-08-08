@@ -15,6 +15,7 @@ module Broker.Internal
         , isEmpty
         , oldestReadableOffset
         , offsetToString
+        , update
         )
 
 import Array exposing (Array)
@@ -191,7 +192,7 @@ append item { config, segments, cycle, segmentIndex, innerOffset } =
     in
         BrokerInternal
             config
-            (setInSegments config segmentIndex innerOffset item segments)
+            (appendToSegments config segmentIndex innerOffset item segments)
             nextCycle
             nextSegmentIndex
             nextInnerOffset
@@ -230,8 +231,8 @@ In future, "fading" Segment may be applied to "onEvicted" callback which can be 
 allowing custom handling of old data (e.g. dump to IndexedDB, upload to somewhere, etc.)
 
 -}
-setInSegments : Config -> SegmentIndex -> InnerOffset -> a -> Segments a -> Segments a
-setInSegments (Config _ segmentSize) (SegmentIndex segmentIndex) (InnerOffset innerOffset) item ({ active, fading } as segments) =
+appendToSegments : Config -> SegmentIndex -> InnerOffset -> a -> Segments a -> Segments a
+appendToSegments (Config _ segmentSize) (SegmentIndex segmentIndex) (InnerOffset innerOffset) item ({ active, fading } as segments) =
     let
         setActive newSegment ({ active } as segments) =
             { segments | active = Array.set segmentIndex newSegment active }
@@ -306,6 +307,25 @@ oldestReadableOffset ({ cycle, segmentIndex } as broker) =
                 Just ( Cycle (pos - 1), segmentIndex, InnerOffset 0 )
 
 
+oldestUpdatableOffset : BrokerInternal a -> ( Cycle, SegmentIndex, InnerOffset )
+oldestUpdatableOffset { cycle, segmentIndex, config } =
+    case cycle of
+        Cycle 0 ->
+            ( cycle, SegmentIndex 0, InnerOffset 0 )
+
+        Cycle pos ->
+            -- Negative cycle should not happen
+            ( Cycle (pos - 1), incrementSegmentIndex config segmentIndex, InnerOffset 0 )
+
+
+incrementSegmentIndex : Config -> SegmentIndex -> SegmentIndex
+incrementSegmentIndex (Config (NumSegments numSegments) _) (SegmentIndex currentSegmentIndex) =
+    if currentSegmentIndex < numSegments - 1 then
+        SegmentIndex (currentSegmentIndex + 1)
+    else
+        SegmentIndex 0
+
+
 offsetToString : ( Cycle, SegmentIndex, InnerOffset ) -> String
 offsetToString ( Cycle cycle, SegmentIndex segmentIndex, InnerOffset innerOffset ) =
     -- Cycle does not have max; up to 32bits
@@ -319,3 +339,54 @@ offsetToString ( Cycle cycle, SegmentIndex segmentIndex, InnerOffset innerOffset
 zeroPaddedHex : Int -> Int -> String
 zeroPaddedHex digits =
     Hex.toString >> String.padLeft digits '0'
+
+
+compareOffsets : ( Cycle, SegmentIndex, InnerOffset ) -> ( Cycle, SegmentIndex, InnerOffset ) -> Order
+compareOffsets ( Cycle c1, SegmentIndex s1, InnerOffset i1 ) ( Cycle c2, SegmentIndex s2, InnerOffset i2 ) =
+    compare ( c1, s1, i1 ) ( c2, s2, i2 )
+
+
+update : ( Cycle, SegmentIndex, InnerOffset ) -> (a -> a) -> BrokerInternal a -> BrokerInternal a
+update targetOffset transform broker =
+    case compareOffsets targetOffset <| oldestUpdatableOffset broker of
+        LT ->
+            broker
+
+        _ ->
+            { broker | segments = updateInSegments targetOffset transform broker.segments }
+
+
+updateInSegments : ( Cycle, SegmentIndex, InnerOffset ) -> (a -> a) -> Segments a -> Segments a
+updateInSegments ( _, SegmentIndex segmentIndex, InnerOffset innerOffset ) transform ({ active } as segments) =
+    case Array.get segmentIndex active of
+        Just (Segment segment) ->
+            case updateItemInSegment innerOffset transform segment of
+                Just newSegment ->
+                    { segments | active = Array.set segmentIndex newSegment active }
+
+                Nothing ->
+                    segments
+
+        Just NotInitialized ->
+            -- Should not happen
+            segments
+
+        Nothing ->
+            -- Should not happen
+            segments
+
+
+updateItemInSegment : Int -> (a -> a) -> Array (Item a) -> Maybe (Segment a)
+updateItemInSegment innerOffset transform segment =
+    case Array.get innerOffset segment of
+        Just (Item item) ->
+            Just <|
+                Segment <|
+                    Array.set innerOffset (Item (transform item)) segment
+
+        Just Empty ->
+            -- Unlikely to happen
+            Nothing
+
+        Nothing ->
+            Nothing
