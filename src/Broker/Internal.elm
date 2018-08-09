@@ -40,11 +40,9 @@ type alias Segments a =
     }
 
 
-
--- Here we introduce two two-state types,
--- in order to differentiate segment states from Maybe values returned by Array APIs.
-
-
+{-| Here we introduce two two-state types, Segment and Item,
+in order to differentiate segment states from Maybe values returned by Array APIs.
+-}
 type Segment a
     = NotInitialized
     | Segment (Array (Item a))
@@ -110,6 +108,10 @@ segmentSize raw =
         SegmentSize maxSegmentSize
     else
         SegmentSize raw
+
+
+type alias OffsetInternal =
+    ( Cycle, SegmentIndex, InnerOffset )
 
 
 type Cycle
@@ -213,7 +215,7 @@ incrementOffset :
     -> Cycle
     -> SegmentIndex
     -> InnerOffset
-    -> ( Cycle, SegmentIndex, InnerOffset )
+    -> OffsetInternal
 incrementOffset (Config (NumSegments numSegments) (SegmentSize segmentSize)) (Cycle currentCycle) (SegmentIndex currentSegmentIndex) (InnerOffset currentInnerOffset) =
     if currentInnerOffset < segmentSize - 1 then
         ( Cycle currentCycle, SegmentIndex currentSegmentIndex, InnerOffset (currentInnerOffset + 1) )
@@ -293,7 +295,7 @@ When Cycle is renewed, old Segments will enter "fading" state one by one.
 "Fading" Segment is readable, but not updatable.
 
 -}
-oldestReadableOffset : BrokerInternal a -> Maybe ( Cycle, SegmentIndex, InnerOffset )
+oldestReadableOffset : BrokerInternal a -> Maybe OffsetInternal
 oldestReadableOffset ({ cycle, segmentIndex } as broker) =
     if isEmpty broker then
         Nothing
@@ -307,7 +309,7 @@ oldestReadableOffset ({ cycle, segmentIndex } as broker) =
                 Just ( Cycle (pos - 1), segmentIndex, InnerOffset 0 )
 
 
-oldestUpdatableOffset : BrokerInternal a -> ( Cycle, SegmentIndex, InnerOffset )
+oldestUpdatableOffset : BrokerInternal a -> OffsetInternal
 oldestUpdatableOffset { cycle, segmentIndex, config } =
     case cycle of
         Cycle 0 ->
@@ -326,7 +328,7 @@ incrementSegmentIndex (Config (NumSegments numSegments) _) (SegmentIndex current
         SegmentIndex 0
 
 
-offsetToString : ( Cycle, SegmentIndex, InnerOffset ) -> String
+offsetToString : OffsetInternal -> String
 offsetToString ( Cycle cycle, SegmentIndex segmentIndex, InnerOffset innerOffset ) =
     -- Cycle does not have max; up to 32bits
     (zeroPaddedHex 8 cycle)
@@ -341,12 +343,12 @@ zeroPaddedHex digits =
     Hex.toString >> String.padLeft digits '0'
 
 
-compareOffsets : ( Cycle, SegmentIndex, InnerOffset ) -> ( Cycle, SegmentIndex, InnerOffset ) -> Order
+compareOffsets : OffsetInternal -> OffsetInternal -> Order
 compareOffsets ( Cycle c1, SegmentIndex s1, InnerOffset i1 ) ( Cycle c2, SegmentIndex s2, InnerOffset i2 ) =
     compare ( c1, s1, i1 ) ( c2, s2, i2 )
 
 
-update : ( Cycle, SegmentIndex, InnerOffset ) -> (a -> a) -> BrokerInternal a -> BrokerInternal a
+update : OffsetInternal -> (a -> a) -> BrokerInternal a -> BrokerInternal a
 update targetOffset transform broker =
     case compareOffsets targetOffset <| oldestUpdatableOffset broker of
         LT ->
@@ -356,7 +358,7 @@ update targetOffset transform broker =
             { broker | segments = updateInSegments targetOffset transform broker.segments }
 
 
-updateInSegments : ( Cycle, SegmentIndex, InnerOffset ) -> (a -> a) -> Segments a -> Segments a
+updateInSegments : OffsetInternal -> (a -> a) -> Segments a -> Segments a
 updateInSegments ( _, SegmentIndex segmentIndex, InnerOffset innerOffset ) transform ({ active } as segments) =
     case Array.get segmentIndex active of
         Just (Segment segment) ->
