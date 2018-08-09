@@ -99,9 +99,9 @@ append element (Broker broker) =
     Broker (I.append element broker)
 
 
-{-| Returns an oldest readable Offset of a Broker. Items older than this Offset are already evicted.
+{-| Returns the oldest readable `Offset` of a `Broker`. Items older than this `Offset` are already evicted.
 
-If the Broker is yet empty, returns Nothing.
+If the `Broker` is yet empty, returns `Nothing`.
 
 -}
 oldestReadableOffset : Broker a -> Maybe Offset
@@ -109,14 +109,14 @@ oldestReadableOffset (Broker broker) =
     I.oldestReadableOffset broker |> Maybe.map Offset
 
 
-{-| Returns an Offset that next item will be written to.
+{-| Returns an `Offset` that next item will be written to.
 -}
 nextOffsetToWrite : Broker a -> Offset
 nextOffsetToWrite (Broker { cycle, segmentIndex, innerOffset }) =
     Offset ( cycle, segmentIndex, innerOffset )
 
 
-{-| Converts an Offset into a sortable String representation.
+{-| Converts an `Offset` into a sortable `String` representation.
 -}
 offsetToString : Offset -> String
 offsetToString (Offset offset) =

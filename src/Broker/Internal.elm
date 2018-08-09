@@ -190,7 +190,7 @@ append : a -> BrokerInternal a -> BrokerInternal a
 append item { config, segments, cycle, segmentIndex, innerOffset } =
     let
         ( nextCycle, nextSegmentIndex, nextInnerOffset ) =
-            incrementOffset config cycle segmentIndex innerOffset
+            incrementOffset config ( cycle, segmentIndex, innerOffset )
     in
         BrokerInternal
             config
@@ -210,13 +210,8 @@ are generated from smart cunstructor functions (e.g. `segmentIndex` in this modu
 thus within-bound.
 
 -}
-incrementOffset :
-    Config
-    -> Cycle
-    -> SegmentIndex
-    -> InnerOffset
-    -> OffsetInternal
-incrementOffset (Config (NumSegments numSegments) (SegmentSize segmentSize)) (Cycle currentCycle) (SegmentIndex currentSegmentIndex) (InnerOffset currentInnerOffset) =
+incrementOffset : Config -> OffsetInternal -> OffsetInternal
+incrementOffset (Config (NumSegments numSegments) (SegmentSize segmentSize)) ( Cycle currentCycle, SegmentIndex currentSegmentIndex, InnerOffset currentInnerOffset ) =
     if currentInnerOffset < segmentSize - 1 then
         ( Cycle currentCycle, SegmentIndex currentSegmentIndex, InnerOffset (currentInnerOffset + 1) )
     else if currentSegmentIndex < numSegments - 1 then

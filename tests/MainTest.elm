@@ -24,7 +24,7 @@ suite =
             [ test "up to the capacity of the Broker" <|
                 \_ ->
                     Broker.initialize 2 100
-                        |> appendUpto 200 "item"
+                        |> appendUpto 200 identity
                         |> Expect.all
                             [ oldestReadableOffsetInString >> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
                             , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00000001" ++ "00" ++ "00000")
@@ -32,7 +32,7 @@ suite =
             , test "up to second cycle" <|
                 \_ ->
                     Broker.initialize 2 100
-                        |> appendUpto 300 "item"
+                        |> appendUpto 300 identity
                         |> Expect.all
                             [ oldestReadableOffsetInString >> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
                             , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00000001" ++ "01" ++ "00000")
@@ -40,28 +40,28 @@ suite =
             ]
         , describe "oldestReadableOffset should be down to fading segment (200 capacity)"
             [ test "not appended" <| \_ -> Broker.initialize 2 100 |> oldestReadableOffsetInString |> Expect.equal Nothing
-            , test "append 1 time" <| \_ -> Broker.initialize 2 100 |> appendUpto 1 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 199 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 199 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 200 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 200 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 201 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 201 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 299 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 299 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 300 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 300 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
-            , test "append 301 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 301 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
-            , test "append 399 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 399 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
-            , test "append 400 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 400 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "00" ++ "00000"))
-            , test "append 401 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 401 "item" |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "00" ++ "00000"))
+            , test "append 1 time" <| \_ -> Broker.initialize 2 100 |> appendUpto 1 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+            , test "append 199 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 199 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+            , test "append 200 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 200 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+            , test "append 201 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 201 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+            , test "append 299 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 299 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
+            , test "append 300 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 300 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
+            , test "append 301 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 301 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
+            , test "append 399 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 399 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
+            , test "append 400 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 400 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "00" ++ "00000"))
+            , test "append 401 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 401 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "00" ++ "00000"))
             ]
         ]
 
 
-appendUpto : Int -> a -> Broker.Broker a -> Broker.Broker a
-appendUpto count item broker =
+appendUpto : Int -> (Int -> a) -> Broker.Broker a -> Broker.Broker a
+appendUpto count itemGenerator broker =
     if count <= 0 then
         broker
     else
         broker
-            |> Broker.append item
-            |> appendUpto (count - 1) item
+            |> Broker.append (itemGenerator count)
+            |> appendUpto (count - 1) itemGenerator
 
 
 oldestReadableOffsetInString : Broker.Broker a -> Maybe String
