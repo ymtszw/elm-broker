@@ -126,11 +126,10 @@ offsetToString offset =
     I.offsetToString offset
 
 
-{-| Read a `Broker` from an `Offset`, returning an item and the next `Offset`,
-or `Nothing` if all items are consumed.
+{-| Read a `Broker` by supplying previously read `Offset` (consumer offset),
+returning a next item and its `Offset`, or `Nothing` if all items are consumed.
 
-If the `Offset` is too old and the target `Segment` is already evicted,
-returns oldest readable item with `Offset` next from it.
+If the `Offset` is too old and the target `Segment` is already evicted, returns the oldest readable item.
 
 Currently it assumes Brokers cannot be reconfigured.
 This means, if the `Offset` is produced from the same `Broker`,
@@ -142,7 +141,7 @@ read offset (Broker broker) =
     I.read offset broker
 
 
-{-| Read a `Broker` from the oldest item. Returns an item and the next `Offset`,
+{-| Read a `Broker` from the oldest item. Returns an item and its `Offset`,
 or `Nothing` if the `Broker` is empty.
 -}
 readOldest : Broker a -> Maybe ( a, Offset )

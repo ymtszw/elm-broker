@@ -239,7 +239,7 @@ append item ({ config, segments, oldestReadableOffset, oldestUpdatableOffset, of
 
 {-| Increment an Offset to the next position in ordinary cases.
 
-Does not take account of Broker reconfiguration;
+Does not take account for Broker reconfiguration;
 a Config is considered a static value here.
 
 Also it assumes all numerical values wrapped in value type constructors
@@ -346,17 +346,11 @@ offsetOlderThan ( Cycle c1, SegmentIndex s1, InnerOffset i1 ) ( Cycle c2, Segmen
 
 
 read : OffsetInternal -> BrokerInternal a -> Maybe ( a, OffsetInternal )
-read targetOffset ({ config, oldestReadableOffset, offsetToWrite } as broker) =
+read consumerOffset ({ config, oldestReadableOffset } as broker) =
     case oldestReadableOffset of
         Just oro ->
-            if offsetIsValid config targetOffset then
-                if offsetOlderThan targetOffset oro then
-                    readAtSurelyReadableOffset oro broker
-                else if offsetOlderThan targetOffset offsetToWrite then
-                    readAtSurelyReadableOffset targetOffset broker
-                else
-                    -- The Offset equals to current write pointer, OR somehow overtook it
-                    Nothing
+            if offsetIsValid config consumerOffset then
+                readIfTargetOffsetIsReadable oro (incrementOffset config consumerOffset) broker
             else
                 -- Shuold not happen as long as Offsets are produced from targeting Broker
                 Nothing
@@ -377,11 +371,22 @@ offsetIsValid (Config (NumSegments numSegments) (SegmentSize segmentSize)) ( _, 
     (segmentIndex < numSegments) && (innerOffset < segmentSize)
 
 
+readIfTargetOffsetIsReadable : OffsetInternal -> OffsetInternal -> BrokerInternal a -> Maybe ( a, OffsetInternal )
+readIfTargetOffsetIsReadable oldestReadableOffset targetOffset broker =
+    if offsetOlderThan targetOffset oldestReadableOffset then
+        readAtSurelyReadableOffset oldestReadableOffset broker
+    else if offsetOlderThan targetOffset broker.offsetToWrite then
+        readAtSurelyReadableOffset targetOffset broker
+    else
+        -- The Offset equals to current write pointer, OR somehow overtook it
+        Nothing
+
+
 readAtSurelyReadableOffset : OffsetInternal -> BrokerInternal a -> Maybe ( a, OffsetInternal )
 readAtSurelyReadableOffset surelyReadableOffset broker =
     broker
         |> getFromSegmentsAtSurelyReadableOffset surelyReadableOffset
-        |> Maybe.map (\item -> ( item, incrementOffset broker.config surelyReadableOffset ))
+        |> Maybe.map (\item -> ( item, surelyReadableOffset ))
 
 
 getFromSegmentsAtSurelyReadableOffset : OffsetInternal -> BrokerInternal a -> Maybe a
