@@ -12,7 +12,7 @@
 - A buffer is made of multiple `Segment`s. Buffer size (= number of `Segment`s and size of each `Segment`) can be configured
 - When a whole buffer is filled up, a new "cycle" begins and old `Segment`s are evicted one by one
 
-[O(1)]: https://latex.codecogs.com/png.latex?%5Cdpi%7B100%7D%20O%281%29
+[O(1)]: https://latex.codecogs.com/gif.latex?%5Cdpi%7B120%7D%20O%281%29
 
 ## Expected Usage
 
