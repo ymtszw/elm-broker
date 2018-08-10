@@ -1,6 +1,6 @@
 {
     "version": "1.0.0",
-    "summary": "Kafka-inspired timeseries data container",
+    "summary": "Data stream buffer inspired by Apache Kafka",
     "repository": "https://github.com/ymtszw/elm-broker.git",
     "license": "BSD3",
     "source-directories": [

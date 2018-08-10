@@ -2,21 +2,19 @@
 
 [![CircleCI](https://circleci.com/gh/ymtszw/elm-broker/tree/master.svg?style=svg)](https://circleci.com/gh/ymtszw/elm-broker/tree/master)
 
-[Apache Kafka](https://kafka.apache.org/)-inspired timeseries data container.
+Data stream buffer for Elm application, inspired by [Apache Kafka](https://kafka.apache.org/).
 
 ## What is this?
 
 - `Broker` is essentially a [circular buffer](https://www.wikiwand.com/en/Circular_buffer), internally using `Array`
 - Read pointers (`Offset`) are exposed to clients, allowing "pull"-style data consumption, just as in Kafka
-- Insert(`append`), `read`, and `update` all take ![O(1)]
+- Insert(`append`), `read`, and `update` all take _O(1)_
 - A buffer is made of multiple `Segment`s. Buffer size (= number of `Segment`s and size of each `Segment`) can be configured
-- When a whole buffer is filled up, a new "cycle" begins and old `Segment`s are evicted one by one
-
-[O(1)]: https://latex.codecogs.com/gif.latex?%5Cdpi%7B120%7D%20O%281%29
+- When the whole buffer is filled up, a new "cycle" begins and old `Segment`s are evicted one by one
 
 ## Expected Usage
 
-- A `Broker` accepts incoming data. <sup>&dagger;</sup>
+- A `Broker` accepts incoming data stream. <sup>&dagger;</sup>
 - Several **consumers** reads ("pulls") data from the `Broker` individually, while maintaining each `Offset` as their internal states.
 - Consumers perform arbitrary operations against acquired data, then read `Broker` again after previous `Offset`. Rinse and repeat.
 
@@ -32,7 +30,7 @@ Wrapping `Offset`s in phantom types is a possible technique to enforce this rest
 
 ## Remarks
 
-- Technically, it can also perform ![O(1)] `delete`, but it is still unclear whether we want `delete` API
+- Technically, it can also perform _O(1)_ `delete`, but it is still unclear whether we want `delete` API
     - Original Kafka now [supports this as an admin command](https://github.com/apache/kafka/blob/trunk/core/src/main/scala/kafka/admin/DeleteRecordsCommand.scala)
 - There are several major features I am interested in:
     - Dump/serialize data into blob, such that it can be used to re-initialize a Broker at application startup
