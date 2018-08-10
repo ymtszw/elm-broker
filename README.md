@@ -8,9 +8,18 @@
 
 - Essentially a [circular buffer](https://www.wikiwand.com/en/Circular_buffer), internally using `Array`
 - Read pointers (`Offset`) are exposed to clients, allowing "pull"-style data consumption, just as in Kafka
-- Insert(append), read, update, and delete all take <img src="https://latex.codecogs.com/gif.latex?O(1)" title="O(1)" />
+- Insert(`append`), `read`, and `update` all take ![O(1)]
 - A buffer is made of multiple `Segment`s. Buffer size (= number of `Segment`s and size of each `Segment`) can be configured
 - When a whole buffer is filled up, a new "cycle" begins and old `Segment`s are evicted one by one
+
+[O(1)]: https://latex.codecogs.com/png.latex?%5Cdpi%7B100%7D%20O%281%29
+
+## Remarks
+
+- Technically, it can also perform ![O(1)] `delete`, but it is still unclear whether we should introduce `delete` API
+- There are several major features I am interested in:
+    - Dump/serialize data into blob, such that it can be used to re-initialize a Broker at application startup
+    - Callback mechanism around `Segment` eviction
 
 ## Development
 
