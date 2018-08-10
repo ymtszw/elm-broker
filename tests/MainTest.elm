@@ -101,6 +101,45 @@ suite =
             , test "readOldest then read (4000 items, 9th segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 4000 identity |> readAndAssertUpTo 2200 (==)
             , test "readOldest then read (4001 items, 10th segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 4001 identity |> readAndAssertUpTo 2001 (==)
             ]
+        , describe "get should work"
+            [ test "readOldest then get should yield exactly the same item" <|
+                \_ ->
+                    Broker.initialize 2 100
+                        |> appendUpto 1 identity
+                        |> assertBeforeAfter Broker.readOldest
+                            (\broker ( item, offset ) -> Broker.get offset broker |> Expect.equal (Just item))
+            , test "readOldest, read, then get should yield the last read item" <|
+                \_ ->
+                    Broker.initialize 2 100
+                        |> appendUpto 2 identity
+                        |> assertBeforeAfter
+                            (\broker -> broker |> Broker.readOldest |> Maybe.andThen (\( _, offset ) -> Broker.read offset broker))
+                            (\broker ( item, offset ) -> Broker.get offset broker |> Expect.equal (Just item))
+            ]
+        , describe "update should work"
+            [ test "update oldest then get should yield updated oldest item" <|
+                \_ ->
+                    Broker.initialize 2 100
+                        |> appendUpto 1 identity
+                        |> assertBeforeAfter Broker.readOldest
+                            (\broker ( item, offset ) ->
+                                broker
+                                    |> Broker.update offset ((+) 10)
+                                    |> Broker.get offset
+                                    |> Expect.equal (Just (item + 10))
+                            )
+            , test "items in fading segment should not be updated" <|
+                \_ ->
+                    Broker.initialize 2 100
+                        |> appendUpto 201 identity
+                        |> assertBeforeAfter Broker.readOldest
+                            (\broker ( item, offset ) ->
+                                broker
+                                    |> Broker.update offset ((+) 10)
+                                    |> Broker.get offset
+                                    |> Expect.equal (Just item)
+                            )
+            ]
         ]
 
 
@@ -146,6 +185,20 @@ readAndAssertUpTo_ count evalItemAtRevIndex broker offset =
 failWithBrokerState : Broker.Broker a -> String -> Expect.Expectation
 failWithBrokerState broker message =
     Expect.fail (message ++ "\nBroker State: " ++ toString broker)
+
+
+assertBeforeAfter :
+    (Broker.Broker a -> Maybe ( a, Broker.Offset ))
+    -> (Broker.Broker a -> ( a, Broker.Offset ) -> Expect.Expectation)
+    -> Broker.Broker a
+    -> Expect.Expectation
+assertBeforeAfter initialOperation assertAfterOperation broker =
+    case initialOperation broker of
+        Just itemAndOffset ->
+            assertAfterOperation broker itemAndOffset
+
+        Nothing ->
+            failWithBrokerState broker "Initial operation did not yield Just value!"
 
 
 oldestReadableOffsetInString : Broker.Broker a -> Maybe String

@@ -17,6 +17,7 @@ module Broker.Internal
         , offsetToString
         , read
         , readOldest
+        , get
         , update
         )
 
@@ -433,6 +434,28 @@ readOldest : BrokerInternal a -> Maybe ( a, OffsetInternal )
 readOldest broker =
     broker.oldestReadableOffset
         |> Maybe.andThen (\oro -> readAtSurelyReadableOffset oro broker)
+
+
+get : OffsetInternal -> BrokerInternal a -> Maybe a
+get targetOffset ({ config, oldestReadableOffset, offsetToWrite } as broker) =
+    case oldestReadableOffset of
+        Just oro ->
+            if offsetIsValid config targetOffset then
+                if offsetOlderThan targetOffset oro then
+                    -- Target Segment is evicted
+                    Nothing
+                else if offsetOlderThan targetOffset offsetToWrite then
+                    getFromSegmentsAtSurelyReadableOffset targetOffset broker
+                else
+                    -- The Offset equals to current write pointer, OR somehow overtook it
+                    Nothing
+            else
+                -- Shuold not happen as long as Offsets are produced from targeting Broker
+                Nothing
+
+        Nothing ->
+            -- Broker is empty
+            Nothing
 
 
 update : OffsetInternal -> (a -> a) -> BrokerInternal a -> BrokerInternal a

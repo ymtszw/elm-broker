@@ -11,6 +11,8 @@ module Broker
         , offsetToString
         , read
         , readOldest
+        , get
+        , update
         )
 
 {-| Apache Kafka-inspired timeseries data container.
@@ -23,7 +25,7 @@ module Broker
 
 ## APIs
 
-@docs initialize, append, read, readOldest
+@docs initialize, append, read, readOldest, get, update
 
 
 ## Monitoring means
@@ -129,7 +131,7 @@ offsetToString offset =
 {-| Read a `Broker` by supplying previously read `Offset` (consumer offset),
 returning a next item and its `Offset`, or `Nothing` if all items are consumed.
 
-If the `Offset` is too old and the target `Segment` is already evicted, returns the oldest readable item.
+If the `Offset` is too old and the target segment is already evicted, returns the oldest readable item.
 
 Currently it assumes Brokers cannot be reconfigured.
 This means, if the `Offset` is produced from the same `Broker`,
@@ -147,3 +149,23 @@ or `Nothing` if the `Broker` is empty.
 readOldest : Broker a -> Maybe ( a, Offset )
 readOldest (Broker broker) =
     I.readOldest broker
+
+
+{-| Get an item exactly at an `Offset`.
+
+Returns `Nothing` if target segment is already evicted or somehow invalid.
+
+-}
+get : Offset -> Broker a -> Maybe a
+get offset (Broker broker) =
+    I.get offset broker
+
+
+{-| Update an item at an `Offset` of a `Broker`.
+
+If target segment is already evicted or not-updatable (soon-to-be-evicted), the `Broker` kept unchanged.
+
+-}
+update : Offset -> (a -> a) -> Broker a -> Broker a
+update offset transform (Broker broker) =
+    Broker (I.update offset transform broker)
