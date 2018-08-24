@@ -1,8 +1,8 @@
-module MainTest exposing (..)
+module MainTest exposing (appendUpto, assertBeforeAfter, failWithBrokerState, oldestReadableOffsetInString, readAndAssertUpTo, readAndAssertUpTo_, suite)
 
+import Broker
 import Expect exposing (Expectation)
 import Test exposing (..)
-import Broker
 
 
 suite : Test
@@ -147,6 +147,7 @@ appendUpto : Int -> (Int -> a) -> Broker.Broker a -> Broker.Broker a
 appendUpto count itemGenerator broker =
     if count <= 0 then
         broker
+
     else
         broker
             |> Broker.append (itemGenerator count)
@@ -159,6 +160,7 @@ readAndAssertUpTo count evalItemAtRevIndex broker =
         Just ( item, nextOffset ) ->
             if evalItemAtRevIndex count item then
                 readAndAssertUpTo_ (count - 1) evalItemAtRevIndex broker nextOffset
+
             else
                 failWithBrokerState broker ("Unexpected item from `readOldest`!: " ++ toString item)
 
@@ -170,11 +172,13 @@ readAndAssertUpTo_ : Int -> (Int -> a -> Bool) -> Broker.Broker a -> Broker.Offs
 readAndAssertUpTo_ count evalItemAtRevIndex broker offset =
     if count <= 0 then
         Broker.read offset broker |> Expect.equal Nothing |> Expect.onFail "Expected to have consumed all readable items but still getting an item from `read`!"
+
     else
         case Broker.read offset broker of
             Just ( item, nextOffset ) ->
                 if evalItemAtRevIndex count item then
                     readAndAssertUpTo_ (count - 1) evalItemAtRevIndex broker nextOffset
+
                 else
                     failWithBrokerState broker ("Unexpected item at [" ++ toString count ++ "]!: " ++ toString item)
 

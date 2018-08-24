@@ -1,19 +1,8 @@
-module Broker
-    exposing
-        ( Broker
-        , Offset
-        , initialize
-        , append
-        , capacity
-        , isEmpty
-        , oldestReadableOffset
-        , nextOffsetToWrite
-        , offsetToString
-        , read
-        , readOldest
-        , get
-        , update
-        )
+module Broker exposing
+    ( Broker, Offset
+    , initialize, append, read, readOldest, get, update
+    , capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString
+    )
 
 {-| Apache Kafka-inspired timeseries data container.
 
@@ -37,10 +26,11 @@ module Broker
 import Broker.Internal as I
 
 
+
 -- TYPES
 
 
-{-| Timeseries data container.
+{-| Data stream buffer.
 -}
 type Broker a
     = Broker
@@ -72,15 +62,15 @@ initialize : Int -> Int -> Broker a
 initialize rawNumSegments rawSegmentSize =
     let
         config_ =
-            I.config rawNumSegments rawSegmentSize
+            I.configCtor rawNumSegments rawSegmentSize
     in
-        Broker
-            { config = config_
-            , segments = I.initSegments config_
-            , oldestReadableOffset = Nothing
-            , oldestUpdatableOffset = I.originOffset
-            , offsetToWrite = I.originOffset
-            }
+    Broker
+        { config = config_
+        , segments = I.initSegments config_
+        , oldestReadableOffset = Nothing
+        , oldestUpdatableOffset = I.originOffset
+        , offsetToWrite = I.originOffset
+        }
 
 
 {-| Returns capacity (number of possible elements) of the Broker.
@@ -110,8 +100,8 @@ If the `Broker` is yet empty, returns `Nothing`.
 
 -}
 oldestReadableOffset : Broker a -> Maybe Offset
-oldestReadableOffset (Broker { oldestReadableOffset }) =
-    oldestReadableOffset
+oldestReadableOffset (Broker broker) =
+    broker.oldestReadableOffset
 
 
 {-| Returns an `Offset` that next item will be written to.

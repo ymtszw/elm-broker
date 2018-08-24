@@ -1,9 +1,9 @@
-module HeavyTest exposing (..)
+module HeavyTest exposing (suite)
 
-import Expect exposing (Expectation)
-import Test exposing (..)
 import Broker
+import Expect exposing (Expectation)
 import MainTest
+import Test exposing (..)
 
 
 suite : Test

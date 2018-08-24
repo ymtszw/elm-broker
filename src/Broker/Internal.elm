@@ -1,28 +1,30 @@
-module Broker.Internal
-    exposing
-        ( Segments
-        , Config
-        , config
-        , Cycle
-        , cycle
-        , SegmentIndex
-        , segmentIndex
-        , InnerOffset
-        , innerOffset
-        , initSegments
-        , originOffset
-        , capacity
-        , append
-        , isEmpty
-        , offsetToString
-        , read
-        , readOldest
-        , get
-        , update
-        )
+module Broker.Internal exposing
+    ( Config, configCtor, Segments, initSegments
+    , Cycle, SegmentIndex, InnerOffset, originOffset
+    , append, read, readOldest, get, update, isEmpty, capacity, offsetToString
+    )
+
+{-| Internal module.
+
+
+## Types
+
+@docs Config, configCtor, Segments, initSegments
+
+
+## Offsets
+
+@docs Cycle, SegmentIndex, InnerOffset, originOffset
+
+
+## APIs
+
+@docs append, read, readOldest, get, update, isEmpty, capacity, offsetToString
+
+-}
 
 import Array exposing (Array)
-import Hex
+
 
 
 -- TYPES
@@ -60,13 +62,25 @@ type Config
     = Config NumSegments SegmentSize
 
 
-config : Int -> Int -> Config
-config rawNumSegments rawSegmentSize =
-    Config (numSegments rawNumSegments) (segmentSize rawSegmentSize)
+configCtor : Int -> Int -> Config
+configCtor numSegmentsInt segmentSizeInt =
+    Config (numSegmentsCtor numSegmentsInt) (segmentSizeCtor segmentSizeInt)
 
 
 type NumSegments
     = NumSegments Int
+
+
+numSegmentsCtor : Int -> NumSegments
+numSegmentsCtor raw =
+    if raw < minNumSegments then
+        NumSegments minNumSegments
+
+    else if maxNumSegments < raw then
+        NumSegments maxNumSegments
+
+    else
+        NumSegments raw
 
 
 minNumSegments : Int
@@ -79,18 +93,20 @@ maxNumSegments =
     100
 
 
-numSegments : Int -> NumSegments
-numSegments raw =
-    if raw < minNumSegments then
-        NumSegments minNumSegments
-    else if maxNumSegments < raw then
-        NumSegments maxNumSegments
-    else
-        NumSegments raw
-
-
 type SegmentSize
     = SegmentSize Int
+
+
+segmentSizeCtor : Int -> SegmentSize
+segmentSizeCtor raw =
+    if raw < minSegmentSize then
+        SegmentSize minSegmentSize
+
+    else if maxSegmentSize < raw then
+        SegmentSize maxSegmentSize
+
+    else
+        SegmentSize raw
 
 
 minSegmentSize : Int
@@ -103,16 +119,6 @@ maxSegmentSize =
     100000
 
 
-segmentSize : Int -> SegmentSize
-segmentSize raw =
-    if raw < minSegmentSize then
-        SegmentSize minSegmentSize
-    else if maxSegmentSize < raw then
-        SegmentSize maxSegmentSize
-    else
-        SegmentSize raw
-
-
 type alias OffsetInternal =
     ( Cycle, SegmentIndex, InnerOffset )
 
@@ -121,54 +127,12 @@ type Cycle
     = Cycle Int
 
 
-{-| Return type-safe Cycle from a given Int.
-
-Cycles are just positive integers, which can grow arbitrarily (within the limit of Int).
-
-It basically resets to zero when an Elm app is reset (i.e. reloaded), UNLESS the previous Cycle value
-was stored somewhere and restored upon initialization.
-
--}
-cycle : Int -> Cycle
-cycle raw =
-    if raw >= 0 then
-        Cycle raw
-    else
-        Cycle 0
-
-
 type SegmentIndex
     = SegmentIndex Int
 
 
-{-| Return type-safe SegmentIndex from a given Int.
-
-  - If within-bound value is given (including 0), just wrap it with constructor.
-  - Out-of-bound values are rounded within bound.
-      - E.g. if numSegments is 4, 5 will result in 1, whereas -5 will result in 3)
-      - This is just modular arithmetic. Negative values can be used to count from tail.
-
--}
-segmentIndex : Config -> Int -> SegmentIndex
-segmentIndex (Config (NumSegments numSegments) _) raw =
-    if 0 <= raw && raw < numSegments then
-        SegmentIndex raw
-    else
-        SegmentIndex (raw % numSegments)
-
-
 type InnerOffset
     = InnerOffset Int
-
-
-{-| Return type-safe InnerOffset from a given Int. Works just like segmentIndex.
--}
-innerOffset : Config -> Int -> InnerOffset
-innerOffset (Config _ (SegmentSize segmentSize)) raw =
-    if 0 <= raw && raw < segmentSize then
-        InnerOffset raw
-    else
-        InnerOffset (raw % segmentSize)
 
 
 
@@ -176,8 +140,8 @@ innerOffset (Config _ (SegmentSize segmentSize)) raw =
 
 
 initSegments : Config -> Segments a
-initSegments (Config (NumSegments numSegments) (SegmentSize segmentSize)) =
-    { active = Array.initialize numSegments (always NotInitialized)
+initSegments (Config (NumSegments numSegmentInt) _) =
+    { active = Array.initialize numSegmentInt (always NotInitialized)
     , fading = Nothing
     }
 
@@ -188,8 +152,8 @@ originOffset =
 
 
 capacity : Config -> Int
-capacity (Config (NumSegments numSegments) (SegmentSize segmentSize)) =
-    numSegments * segmentSize
+capacity (Config (NumSegments numSegmentInt) (SegmentSize segmentSizeInt)) =
+    numSegmentInt * segmentSizeInt
 
 
 {-| Append an item to a Broker.
@@ -232,10 +196,10 @@ append item ({ config, segments, oldestReadableOffset, oldestUpdatableOffset, of
                 ( Cycle _, SegmentIndex _, InnerOffset _ ) ->
                     broker
     in
-        { offsetUpdatedBroker
-            | segments = appendToSegments config offsetToWrite item segments
-            , offsetToWrite = nextOffsetToWrite
-        }
+    { offsetUpdatedBroker
+        | segments = appendToSegments config offsetToWrite item segments
+        , offsetToWrite = nextOffsetToWrite
+    }
 
 
 {-| Increment an Offset to the next position in ordinary cases.
@@ -249,21 +213,24 @@ thus within-bound.
 
 -}
 incrementOffset : Config -> OffsetInternal -> OffsetInternal
-incrementOffset (Config (NumSegments numSegments) (SegmentSize segmentSize)) ( Cycle currentCycle, SegmentIndex currentSegmentIndex, InnerOffset currentInnerOffset ) =
-    if currentInnerOffset < segmentSize - 1 then
-        ( Cycle currentCycle, SegmentIndex currentSegmentIndex, InnerOffset (currentInnerOffset + 1) )
-    else if currentSegmentIndex < numSegments - 1 then
-        ( Cycle currentCycle, SegmentIndex (currentSegmentIndex + 1), InnerOffset 0 )
+incrementOffset (Config (NumSegments numSegmentInt) (SegmentSize segmentSizeInt)) ( Cycle cycleInt, SegmentIndex segmentIndexInt, InnerOffset innerOffsetInt ) =
+    if innerOffsetInt < segmentSizeInt - 1 then
+        ( Cycle cycleInt, SegmentIndex segmentIndexInt, InnerOffset (innerOffsetInt + 1) )
+
+    else if segmentIndexInt < numSegmentInt - 1 then
+        ( Cycle cycleInt, SegmentIndex (segmentIndexInt + 1), InnerOffset 0 )
+
     else
-        ( Cycle (currentCycle + 1), SegmentIndex 0, InnerOffset 0 )
+        ( Cycle (cycleInt + 1), SegmentIndex 0, InnerOffset 0 )
 
 
 forwardToNextSegment : Config -> OffsetInternal -> OffsetInternal
-forwardToNextSegment (Config (NumSegments numSegments) _) ( Cycle currentCycle, SegmentIndex currentSegmentIndex, _ ) =
-    if currentSegmentIndex < numSegments - 1 then
-        ( Cycle currentCycle, SegmentIndex (currentSegmentIndex + 1), InnerOffset 0 )
+forwardToNextSegment (Config (NumSegments numSegmentInt) _) ( Cycle cycleInt, SegmentIndex segmentIndexInt, _ ) =
+    if segmentIndexInt < numSegmentInt - 1 then
+        ( Cycle cycleInt, SegmentIndex (segmentIndexInt + 1), InnerOffset 0 )
+
     else
-        ( Cycle (currentCycle + 1), SegmentIndex 0, InnerOffset 0 )
+        ( Cycle (cycleInt + 1), SegmentIndex 0, InnerOffset 0 )
 
 
 {-| Set a value in Segments at an Offset. If the Offset is stepping into next SegmentIndex, evict the old Segment.
@@ -275,38 +242,40 @@ allowing custom handling of old data (e.g. dump to IndexedDB, upload to somewher
 
 -}
 appendToSegments : Config -> OffsetInternal -> a -> Segments a -> Segments a
-appendToSegments (Config _ segmentSize) ( _, SegmentIndex segmentIndex, InnerOffset innerOffset ) item ({ active, fading } as segments) =
-    let
-        setActive newSegment ({ active } as segments) =
-            { segments | active = Array.set segmentIndex newSegment active }
-    in
-        case Array.get segmentIndex active of
-            Just ((Segment segment) as oldSegment) ->
-                -- Segment exists, either already initialized, or stepped into existing one after full Cycle
-                if innerOffset == 0 then
-                    -- Stepped into next Segment, so evict old one
-                    -- At this moment previously "faded" Segment will be gone
-                    { segments | fading = Just oldSegment }
-                        |> setActive (initSegmentWithFirstItem segmentSize item)
-                else
-                    setActive (Segment (Array.set innerOffset (Item item) segment)) segments
+appendToSegments (Config _ segmentSizeInt) ( _, SegmentIndex segmentIndexInt, InnerOffset innerOffsetInt ) item ({ active, fading } as segments) =
+    case Array.get segmentIndexInt active of
+        Just ((Segment segment) as oldSegment) ->
+            -- Segment exists, either already initialized, or stepped into existing one after full Cycle
+            if innerOffsetInt == 0 then
+                -- Stepped into next Segment, so evict old one
+                -- At this moment previously "faded" Segment will be gone
+                { segments | fading = Just oldSegment }
+                    |> setActive segmentIndexInt (initSegmentWithFirstItem segmentSizeInt item)
 
-            Just NotInitialized ->
-                -- Lazily initialize a segment.
-                -- Must be: innerOffset == 0
-                segments
-                    |> setActive (initSegmentWithFirstItem segmentSize item)
+            else
+                setActive segmentIndexInt (Segment (Array.set innerOffsetInt (Item item) segment)) segments
 
-            Nothing ->
-                -- segmentIndex out of bound, this should not happen
-                segments
-                    |> setActive (initSegmentWithFirstItem segmentSize item)
+        Just NotInitialized ->
+            -- Lazily initialize a segment.
+            -- Must be: innerOffsetInt == 0
+            segments
+                |> setActive segmentIndexInt (initSegmentWithFirstItem segmentSizeInt item)
+
+        Nothing ->
+            -- segmentIndex out of bound, this should not happen
+            segments
+                |> setActive segmentIndexInt (initSegmentWithFirstItem segmentSizeInt item)
+
+
+setActive : Int -> Segment a -> Segments a -> Segments a
+setActive segmentIndexInt newSegment ({ active } as segments) =
+    { segments | active = Array.set segmentIndexInt newSegment active }
 
 
 initSegmentWithFirstItem : SegmentSize -> a -> Segment a
-initSegmentWithFirstItem (SegmentSize segmentSize) item =
+initSegmentWithFirstItem (SegmentSize segmentSizeInt) item =
     Segment <|
-        Array.initialize segmentSize <|
+        Array.initialize segmentSizeInt <|
             \index ->
                 case index of
                     0 ->
@@ -327,23 +296,88 @@ isEmpty { oldestReadableOffset } =
 
 
 offsetToString : OffsetInternal -> String
-offsetToString ( Cycle cycle, SegmentIndex segmentIndex, InnerOffset innerOffset ) =
+offsetToString ( Cycle cycleInt, SegmentIndex segmentIndexInt, InnerOffset innerOffsetInt ) =
     -- Cycle does not have max; up to 32bits
-    (zeroPaddedHex 8 cycle)
+    zeroPaddedHex 8 cycleInt
         -- SegmentIndex is up to 100 < 8bits
-        ++ (zeroPaddedHex 2 segmentIndex)
+        ++ zeroPaddedHex 2 segmentIndexInt
         -- InnerOffset is up to 100000 < 20bits
-        ++ (zeroPaddedHex 5 innerOffset)
+        ++ zeroPaddedHex 5 innerOffsetInt
 
 
 zeroPaddedHex : Int -> Int -> String
 zeroPaddedHex digits =
-    Hex.toString >> String.padLeft digits '0'
+    toHex "" >> String.padLeft digits '0'
+
+
+toHex : String -> Int -> String
+toHex acc num =
+    if num < 16 then
+        toHexImpl num ++ acc
+
+    else
+        toHex (toHexImpl (modBy 16 num) ++ acc) (num // 16)
+
+
+toHexImpl : Int -> String
+toHexImpl numUpTo15 =
+    case numUpTo15 of
+        0 ->
+            "0"
+
+        1 ->
+            "1"
+
+        2 ->
+            "2"
+
+        3 ->
+            "3"
+
+        4 ->
+            "4"
+
+        5 ->
+            "5"
+
+        6 ->
+            "6"
+
+        7 ->
+            "7"
+
+        8 ->
+            "8"
+
+        9 ->
+            "9"
+
+        10 ->
+            "a"
+
+        11 ->
+            "b"
+
+        12 ->
+            "c"
+
+        13 ->
+            "d"
+
+        14 ->
+            "e"
+
+        15 ->
+            "f"
+
+        _ ->
+            -- Should not happen; Trapping by infinite loop!
+            toHexImpl numUpTo15
 
 
 offsetOlderThan : OffsetInternal -> OffsetInternal -> Bool
-offsetOlderThan ( Cycle c1, SegmentIndex s1, InnerOffset i1 ) ( Cycle c2, SegmentIndex s2, InnerOffset i2 ) =
-    ( c1, s1, i1 ) < ( c2, s2, i2 )
+offsetOlderThan ( Cycle c1, SegmentIndex si1, InnerOffset io1 ) ( Cycle c2, SegmentIndex si2, InnerOffset io2 ) =
+    ( c1, si1, io1 ) < ( c2, si2, io2 )
 
 
 read : OffsetInternal -> BrokerInternal a -> Maybe ( a, OffsetInternal )
@@ -352,6 +386,7 @@ read consumerOffset ({ config, oldestReadableOffset } as broker) =
         Just oro ->
             if offsetIsValid config consumerOffset then
                 readIfTargetOffsetIsReadable oro (incrementOffset config consumerOffset) broker
+
             else
                 -- Shuold not happen as long as Offsets are produced from targeting Broker
                 Nothing
@@ -367,17 +402,19 @@ Does not check if the `Offset` is not evicted or not overtaking write pointer.
 
 -}
 offsetIsValid : Config -> OffsetInternal -> Bool
-offsetIsValid (Config (NumSegments numSegments) (SegmentSize segmentSize)) ( _, SegmentIndex segmentIndex, InnerOffset innerOffset ) =
-    -- Skipping 0 <= segmentIndex and 0 <= innerOffset assertion since they are super unlikely to be False
-    (segmentIndex < numSegments) && (innerOffset < segmentSize)
+offsetIsValid (Config (NumSegments numSegmentInt) (SegmentSize segmentSizeInt)) ( _, SegmentIndex segmentIndexInt, InnerOffset innerOffsetInt ) =
+    -- Skipping 0 <= segmentIndexInt and 0 <= innerOffsetInt assertion since they are super unlikely to be False
+    (segmentIndexInt < numSegmentInt) && (innerOffsetInt < segmentSizeInt)
 
 
 readIfTargetOffsetIsReadable : OffsetInternal -> OffsetInternal -> BrokerInternal a -> Maybe ( a, OffsetInternal )
 readIfTargetOffsetIsReadable oldestReadableOffset targetOffset broker =
     if offsetOlderThan targetOffset oldestReadableOffset then
         readAtSurelyReadableOffset oldestReadableOffset broker
+
     else if offsetOlderThan targetOffset broker.offsetToWrite then
         readAtSurelyReadableOffset targetOffset broker
+
     else
         -- The Offset equals to current write pointer, OR somehow overtook it
         Nothing
@@ -391,13 +428,14 @@ readAtSurelyReadableOffset surelyReadableOffset broker =
 
 
 getFromSegmentsAtSurelyReadableOffset : OffsetInternal -> BrokerInternal a -> Maybe a
-getFromSegmentsAtSurelyReadableOffset (( _, _, innerOffset ) as surelyReadableOffset) { segments, oldestUpdatableOffset } =
+getFromSegmentsAtSurelyReadableOffset (( _, _, innerOffsetInt ) as surelyReadableOffset) { segments, oldestUpdatableOffset } =
     if not (offsetOlderThan surelyReadableOffset oldestUpdatableOffset) then
         getFromActiveSegmentsAtSurelyReadableOffset surelyReadableOffset segments.active
+
     else
         case segments.fading of
             Just (Segment fading) ->
-                getFromSegmentAtSurelyReadableInnerOffset innerOffset fading
+                getFromSegmentAtSurelyReadableInnerOffset innerOffsetInt fading
 
             Just NotInitialized ->
                 -- Should not happen; There must be a Segment on readable segmentIndex
@@ -409,10 +447,10 @@ getFromSegmentsAtSurelyReadableOffset (( _, _, innerOffset ) as surelyReadableOf
 
 
 getFromActiveSegmentsAtSurelyReadableOffset : OffsetInternal -> Array (Segment a) -> Maybe a
-getFromActiveSegmentsAtSurelyReadableOffset ( _, SegmentIndex segmentIndex, innerOffset ) active =
-    case Array.get segmentIndex active of
+getFromActiveSegmentsAtSurelyReadableOffset ( _, SegmentIndex segmentIndexInt, innerOffsetInt ) active =
+    case Array.get segmentIndexInt active of
         Just (Segment targetSegment) ->
-            getFromSegmentAtSurelyReadableInnerOffset innerOffset targetSegment
+            getFromSegmentAtSurelyReadableInnerOffset innerOffsetInt targetSegment
 
         _ ->
             -- Should not happen; There must be a Segment at readable segmentIndex
@@ -420,8 +458,8 @@ getFromActiveSegmentsAtSurelyReadableOffset ( _, SegmentIndex segmentIndex, inne
 
 
 getFromSegmentAtSurelyReadableInnerOffset : InnerOffset -> Array (Item a) -> Maybe a
-getFromSegmentAtSurelyReadableInnerOffset (InnerOffset innerOffset) segment =
-    case Array.get innerOffset segment of
+getFromSegmentAtSurelyReadableInnerOffset (InnerOffset innerOffsetInt) segment =
+    case Array.get innerOffsetInt segment of
         Just (Item a) ->
             Just a
 
@@ -444,11 +482,14 @@ get targetOffset ({ config, oldestReadableOffset, offsetToWrite } as broker) =
                 if offsetOlderThan targetOffset oro then
                     -- Target Segment is evicted
                     Nothing
+
                 else if offsetOlderThan targetOffset offsetToWrite then
                     getFromSegmentsAtSurelyReadableOffset targetOffset broker
+
                 else
                     -- The Offset equals to current write pointer, OR somehow overtook it
                     Nothing
+
             else
                 -- Shuold not happen as long as Offsets are produced from targeting Broker
                 Nothing
@@ -462,17 +503,18 @@ update : OffsetInternal -> (a -> a) -> BrokerInternal a -> BrokerInternal a
 update targetOffset transform ({ segments, oldestUpdatableOffset } as broker) =
     if offsetOlderThan targetOffset oldestUpdatableOffset then
         broker
+
     else
         { broker | segments = updateInSegments targetOffset transform segments }
 
 
 updateInSegments : OffsetInternal -> (a -> a) -> Segments a -> Segments a
-updateInSegments ( _, SegmentIndex segmentIndex, InnerOffset innerOffset ) transform ({ active } as segments) =
-    case Array.get segmentIndex active of
+updateInSegments ( _, SegmentIndex segmentIndexInt, InnerOffset innerOffsetInt ) transform ({ active } as segments) =
+    case Array.get segmentIndexInt active of
         Just (Segment segment) ->
-            case updateItemInSegment innerOffset transform segment of
+            case updateItemInSegment innerOffsetInt transform segment of
                 Just newSegment ->
-                    { segments | active = Array.set segmentIndex newSegment active }
+                    { segments | active = Array.set segmentIndexInt newSegment active }
 
                 Nothing ->
                     segments
@@ -487,12 +529,12 @@ updateInSegments ( _, SegmentIndex segmentIndex, InnerOffset innerOffset ) trans
 
 
 updateItemInSegment : Int -> (a -> a) -> Array (Item a) -> Maybe (Segment a)
-updateItemInSegment innerOffset transform segment =
-    case Array.get innerOffset segment of
+updateItemInSegment innerOffsetInt transform segment =
+    case Array.get innerOffsetInt segment of
         Just (Item item) ->
             Just <|
                 Segment <|
-                    Array.set innerOffset (Item (transform item)) segment
+                    Array.set innerOffsetInt (Item (transform item)) segment
 
         Just Empty ->
             -- Unlikely to happen
