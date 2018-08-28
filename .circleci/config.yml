@@ -11,7 +11,7 @@ jobs:
           - repo-{{ .Branch }}-
           - repo-
       - checkout
-      - run: ls -lha /home/elm/.yarn/bin/
+      - run: elm-test
       - save_cache:
           paths:
             - .
