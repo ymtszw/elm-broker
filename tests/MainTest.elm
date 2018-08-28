@@ -162,10 +162,10 @@ readAndAssertUpTo count evalItemAtRevIndex broker =
                 readAndAssertUpTo_ (count - 1) evalItemAtRevIndex broker nextOffset
 
             else
-                failWithBrokerState broker ("Unexpected item from `readOldest`!: " ++ toString item)
+                failWithBrokerState broker ("Unexpected item from `readOldest`!: " ++ Debug.toString item)
 
         otherwise ->
-            failWithBrokerState broker ("Unexpected result from `readOldest`!: " ++ toString otherwise)
+            failWithBrokerState broker ("Unexpected result from `readOldest`!: " ++ Debug.toString otherwise)
 
 
 readAndAssertUpTo_ : Int -> (Int -> a -> Bool) -> Broker.Broker a -> Broker.Offset -> Expect.Expectation
@@ -180,15 +180,15 @@ readAndAssertUpTo_ count evalItemAtRevIndex broker offset =
                     readAndAssertUpTo_ (count - 1) evalItemAtRevIndex broker nextOffset
 
                 else
-                    failWithBrokerState broker ("Unexpected item at [" ++ toString count ++ "]!: " ++ toString item)
+                    failWithBrokerState broker ("Unexpected item at [" ++ Debug.toString count ++ "]!: " ++ Debug.toString item)
 
             otherwise ->
-                failWithBrokerState broker ("Unexpected result at [" ++ toString count ++ "]!: " ++ toString otherwise)
+                failWithBrokerState broker ("Unexpected result at [" ++ Debug.toString count ++ "]!: " ++ Debug.toString otherwise)
 
 
 failWithBrokerState : Broker.Broker a -> String -> Expect.Expectation
 failWithBrokerState broker message =
-    Expect.fail (message ++ "\nBroker State: " ++ toString broker)
+    Expect.fail (message ++ "\nBroker State: " ++ Debug.toString broker)
 
 
 assertBeforeAfter :
