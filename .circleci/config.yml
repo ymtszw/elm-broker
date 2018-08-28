@@ -11,7 +11,7 @@ jobs:
           - repo-{{ .Branch }}-
           - repo-
       - checkout
-      - run: elm-test
+      - run: elm make
       - save_cache:
           paths:
             - .
