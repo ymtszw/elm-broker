@@ -149,9 +149,7 @@ appendUpto count itemGenerator broker =
         broker
 
     else
-        broker
-            |> Broker.append (itemGenerator count)
-            |> appendUpto (count - 1) itemGenerator
+        appendUpto (count - 1) itemGenerator (Broker.append (itemGenerator count) broker)
 
 
 readAndAssertUpTo : Int -> (Int -> a -> Bool) -> Broker.Broker a -> Expect.Expectation
