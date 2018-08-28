@@ -5,18 +5,18 @@ jobs:
       - image: ymtszw/elm_for_ci:0.19
     working_directory: ~/repo
     steps:
-      - checkout
       - restore_cache:
           keys:
-          - elm-stuff-{{ .Branch }}-{{ .Revision }}
-          - elm-stuff-{{ .Branch }}-
-          - elm-stuff-
+          - repo-{{ .Branch }}-{{ .Revision }}
+          - repo-{{ .Branch }}-
+          - repo-
+      - checkout
       - run: elm-test
       - save_cache:
           paths:
-            - elm-stuff
-            - tests/elm-stuff
-          key: elm-stuff-{{ .Branch }}-{{ .Revision }}
+            - .
+            - ~/.elm
+          key: repo-{{ .Branch }}-{{ .Revision }}
 
 workflows:
   version: 2
