@@ -11,10 +11,11 @@ jobs:
           - repo-{{ .Branch }}-
           - repo-
       - checkout
+      - run: rm -rf elm-stuff/
       - run: elm-test
       - save_cache:
           paths:
-            - .
+            # - .
             - ~/.elm
           key: repo-{{ .Branch }}-{{ .Revision }}
 
