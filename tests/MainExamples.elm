@@ -1,6 +1,6 @@
-module MainTest exposing (appendUpto, assertBeforeAfter, failWithBrokerState, oldestReadableOffsetInString, readAndAssertUpTo, readAndAssertUpTo_, suite)
+module MainExamples exposing (appendUpto, oldestReadableOffsetInString, suite)
 
-import Broker
+import Broker exposing (Broker)
 import Expect exposing (Expectation)
 import Test exposing (..)
 
@@ -143,7 +143,7 @@ suite =
         ]
 
 
-appendUpto : Int -> (Int -> a) -> Broker.Broker a -> Broker.Broker a
+appendUpto : Int -> (Int -> a) -> Broker a -> Broker a
 appendUpto count itemGenerator broker =
     if count <= 0 then
         broker
@@ -152,7 +152,7 @@ appendUpto count itemGenerator broker =
         appendUpto (count - 1) itemGenerator (Broker.append (itemGenerator count) broker)
 
 
-readAndAssertUpTo : Int -> (Int -> a -> Bool) -> Broker.Broker a -> Expect.Expectation
+readAndAssertUpTo : Int -> (Int -> a -> Bool) -> Broker a -> Expectation
 readAndAssertUpTo count evalItemAtRevIndex broker =
     case Broker.readOldest broker of
         Just ( item, nextOffset ) ->
@@ -166,7 +166,7 @@ readAndAssertUpTo count evalItemAtRevIndex broker =
             failWithBrokerState broker ("Unexpected result from `readOldest`!: " ++ Debug.toString otherwise)
 
 
-readAndAssertUpTo_ : Int -> (Int -> a -> Bool) -> Broker.Broker a -> Broker.Offset -> Expect.Expectation
+readAndAssertUpTo_ : Int -> (Int -> a -> Bool) -> Broker a -> Broker.Offset -> Expectation
 readAndAssertUpTo_ count evalItemAtRevIndex broker offset =
     if count <= 0 then
         Broker.read offset broker |> Expect.equal Nothing |> Expect.onFail "Expected to have consumed all readable items but still getting an item from `read`!"
@@ -184,16 +184,16 @@ readAndAssertUpTo_ count evalItemAtRevIndex broker offset =
                 failWithBrokerState broker ("Unexpected result at [" ++ Debug.toString count ++ "]!: " ++ Debug.toString otherwise)
 
 
-failWithBrokerState : Broker.Broker a -> String -> Expect.Expectation
+failWithBrokerState : Broker a -> String -> Expectation
 failWithBrokerState broker message =
     Expect.fail (message ++ "\nBroker State: " ++ Debug.toString broker)
 
 
 assertBeforeAfter :
-    (Broker.Broker a -> Maybe ( a, Broker.Offset ))
-    -> (Broker.Broker a -> ( a, Broker.Offset ) -> Expect.Expectation)
-    -> Broker.Broker a
-    -> Expect.Expectation
+    (Broker a -> Maybe ( a, Broker.Offset ))
+    -> (Broker a -> ( a, Broker.Offset ) -> Expectation)
+    -> Broker a
+    -> Expectation
 assertBeforeAfter initialOperation assertAfterOperation broker =
     case initialOperation broker of
         Just itemAndOffset ->
@@ -203,6 +203,6 @@ assertBeforeAfter initialOperation assertAfterOperation broker =
             failWithBrokerState broker "Initial operation did not yield Just value!"
 
 
-oldestReadableOffsetInString : Broker.Broker a -> Maybe String
+oldestReadableOffsetInString : Broker a -> Maybe String
 oldestReadableOffsetInString =
     Broker.oldestReadableOffset >> Maybe.map Broker.offsetToString
