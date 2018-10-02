@@ -1,6 +1,0 @@
-{
-  "mainPaths": [
-    "MainTest.elm",
-    "HeavyTest.elm"
-  ]
-}

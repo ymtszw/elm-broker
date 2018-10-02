@@ -1,19 +1,9 @@
-module Broker
-    exposing
-        ( Broker
-        , Offset
-        , initialize
-        , append
-        , capacity
-        , isEmpty
-        , oldestReadableOffset
-        , nextOffsetToWrite
-        , offsetToString
-        , read
-        , readOldest
-        , get
-        , update
-        )
+module Broker exposing
+    ( Broker, Offset
+    , initialize, append, read, readOldest, get, update
+    , decoder, encode
+    , capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString
+    )
 
 {-| Apache Kafka-inspired timeseries data container.
 
@@ -28,6 +18,11 @@ module Broker
 @docs initialize, append, read, readOldest, get, update
 
 
+## Decoder/Encoder
+
+@docs decoder, encode
+
+
 ## Monitoring means
 
 @docs capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString
@@ -35,21 +30,18 @@ module Broker
 -}
 
 import Broker.Internal as I
+import Json.Decode as D exposing (Decoder)
+import Json.Encode as E
+
 
 
 -- TYPES
 
 
-{-| Timeseries data container.
+{-| Data stream buffer.
 -}
 type Broker a
-    = Broker
-        { config : I.Config
-        , segments : I.Segments a
-        , oldestReadableOffset : Maybe Offset
-        , oldestUpdatableOffset : Offset
-        , offsetToWrite : Offset
-        }
+    = Broker (I.BrokerInternal a)
 
 
 {-| Global offset within a `Broker`.
@@ -57,8 +49,8 @@ type Broker a
 Offset itself can live independently from its generating `Broker`.
 
 -}
-type alias Offset =
-    ( I.Cycle, I.SegmentIndex, I.InnerOffset )
+type Offset
+    = Offset I.OffsetInternal
 
 
 
@@ -72,15 +64,15 @@ initialize : Int -> Int -> Broker a
 initialize rawNumSegments rawSegmentSize =
     let
         config_ =
-            I.config rawNumSegments rawSegmentSize
+            I.configCtor rawNumSegments rawSegmentSize
     in
-        Broker
-            { config = config_
-            , segments = I.initSegments config_
-            , oldestReadableOffset = Nothing
-            , oldestUpdatableOffset = I.originOffset
-            , offsetToWrite = I.originOffset
-            }
+    Broker
+        { config = config_
+        , segments = I.initSegments config_
+        , oldestReadableOffset = Nothing
+        , oldestUpdatableOffset = I.originOffset
+        , offsetToWrite = I.originOffset
+        }
 
 
 {-| Returns capacity (number of possible elements) of the Broker.
@@ -110,22 +102,22 @@ If the `Broker` is yet empty, returns `Nothing`.
 
 -}
 oldestReadableOffset : Broker a -> Maybe Offset
-oldestReadableOffset (Broker { oldestReadableOffset }) =
-    oldestReadableOffset
+oldestReadableOffset (Broker broker) =
+    Maybe.map Offset broker.oldestReadableOffset
 
 
 {-| Returns an `Offset` that next item will be written to.
 -}
 nextOffsetToWrite : Broker a -> Offset
 nextOffsetToWrite (Broker { offsetToWrite }) =
-    offsetToWrite
+    Offset offsetToWrite
 
 
 {-| Converts an `Offset` into a sortable `String` representation.
 -}
 offsetToString : Offset -> String
-offsetToString offset =
-    I.offsetToString offset
+offsetToString (Offset offsetInternal) =
+    I.offsetToString offsetInternal
 
 
 {-| Read a `Broker` by supplying previously read `Offset` (consumer offset),
@@ -139,8 +131,8 @@ it can never overtake the current write pointer or become out of bound of the `B
 
 -}
 read : Offset -> Broker a -> Maybe ( a, Offset )
-read offset (Broker broker) =
-    I.read offset broker
+read (Offset offsetInternal) (Broker broker) =
+    Maybe.map (Tuple.mapSecond Offset) (I.read offsetInternal broker)
 
 
 {-| Read a `Broker` from the oldest item. Returns an item and its `Offset`,
@@ -148,7 +140,7 @@ or `Nothing` if the `Broker` is empty.
 -}
 readOldest : Broker a -> Maybe ( a, Offset )
 readOldest (Broker broker) =
-    I.readOldest broker
+    Maybe.map (Tuple.mapSecond Offset) (I.readOldest broker)
 
 
 {-| Get an item exactly at an `Offset`.
@@ -157,8 +149,8 @@ Returns `Nothing` if target segment is already evicted or somehow invalid.
 
 -}
 get : Offset -> Broker a -> Maybe a
-get offset (Broker broker) =
-    I.get offset broker
+get (Offset offsetInternal) (Broker broker) =
+    I.get offsetInternal broker
 
 
 {-| Update an item at an `Offset` of a `Broker`.
@@ -167,5 +159,29 @@ If target segment is already evicted or not-updatable (soon-to-be-evicted), the 
 
 -}
 update : Offset -> (a -> a) -> Broker a -> Broker a
-update offset transform (Broker broker) =
-    Broker (I.update offset transform broker)
+update (Offset offsetInternal) transform (Broker broker) =
+    Broker (I.update offsetInternal transform broker)
+
+
+{-| Decode JS value into Broker. You must supply Decoder for items.
+
+Paired with `encode`, you can "dump and reload" exisiting Broker.
+
+-}
+decoder : Decoder a -> Decoder (Broker a)
+decoder itemDecoder =
+    D.map Broker (I.decoder itemDecoder)
+
+
+{-| Encode Broker into JS value. You must supply encode function for items.
+
+Paired with `decoder`, you can "dump and reload" exisitng Broker.
+
+Do note that, this function naively encodes internal structure of Broker into JS values,
+which may require non-ignorable amount of work (both in encode and decode) if capacity of the Broker is big.
+More sophisticated "resume" behavior might be needed later.
+
+-}
+encode : (a -> E.Value) -> Broker a -> E.Value
+encode encodeItem (Broker broker) =
+    I.encode encodeItem broker

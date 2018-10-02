@@ -33,7 +33,8 @@ Wrapping `Offset`s in phantom types is a possible technique to enforce this rest
 - Technically, it can also perform _O(1)_ `delete`, but it is still unclear whether we want `delete` API
     - Original Kafka now [supports this as an admin command](https://github.com/apache/kafka/blob/trunk/core/src/main/scala/kafka/admin/DeleteRecordsCommand.scala)
 - There are several major features I am interested in:
-    - Dump/serialize data into blob, such that it can be used to re-initialize a Broker at application startup
+    - More sophisticated/efficient dump and reload. Current implementation is plain old `encode` and `decoder` pair,
+      which is potentially inefficient for big-capacity `Broker`s.
     - Bulk append and bulk read
     - Callback mechanism around `Segment` eviction
 - Although bulk read is possible feature to add, do note that consumers may perform **arbitrary** operation against data,
@@ -48,7 +49,7 @@ Wrapping `Offset`s in phantom types is a possible technique to enforce this rest
 Install Elm Platform.
 
 ```sh
-$ elm-package install
+$ elm make
 $ elm-test                    # full test
 $ elm-test tests/MainTest.elm # only light-weight tests
 ```
