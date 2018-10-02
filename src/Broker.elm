@@ -36,9 +36,9 @@ type Broker a
     = Broker
         { config : I.Config
         , segments : I.Segments a
-        , oldestReadableOffset : Maybe Offset
-        , oldestUpdatableOffset : Offset
-        , offsetToWrite : Offset
+        , oldestReadableOffset : Maybe I.OffsetInternal
+        , oldestUpdatableOffset : I.OffsetInternal
+        , offsetToWrite : I.OffsetInternal
         }
 
 
@@ -47,8 +47,8 @@ type Broker a
 Offset itself can live independently from its generating `Broker`.
 
 -}
-type alias Offset =
-    ( I.Cycle, I.SegmentIndex, I.InnerOffset )
+type Offset
+    = Offset I.OffsetInternal
 
 
 
@@ -101,21 +101,21 @@ If the `Broker` is yet empty, returns `Nothing`.
 -}
 oldestReadableOffset : Broker a -> Maybe Offset
 oldestReadableOffset (Broker broker) =
-    broker.oldestReadableOffset
+    Maybe.map Offset broker.oldestReadableOffset
 
 
 {-| Returns an `Offset` that next item will be written to.
 -}
 nextOffsetToWrite : Broker a -> Offset
 nextOffsetToWrite (Broker { offsetToWrite }) =
-    offsetToWrite
+    Offset offsetToWrite
 
 
 {-| Converts an `Offset` into a sortable `String` representation.
 -}
 offsetToString : Offset -> String
-offsetToString offset =
-    I.offsetToString offset
+offsetToString (Offset offsetInternal) =
+    I.offsetToString offsetInternal
 
 
 {-| Read a `Broker` by supplying previously read `Offset` (consumer offset),
@@ -129,8 +129,8 @@ it can never overtake the current write pointer or become out of bound of the `B
 
 -}
 read : Offset -> Broker a -> Maybe ( a, Offset )
-read offset (Broker broker) =
-    I.read offset broker
+read (Offset offsetInternal) (Broker broker) =
+    Maybe.map (Tuple.mapSecond Offset) (I.read offsetInternal broker)
 
 
 {-| Read a `Broker` from the oldest item. Returns an item and its `Offset`,
@@ -138,7 +138,7 @@ or `Nothing` if the `Broker` is empty.
 -}
 readOldest : Broker a -> Maybe ( a, Offset )
 readOldest (Broker broker) =
-    I.readOldest broker
+    Maybe.map (Tuple.mapSecond Offset) (I.readOldest broker)
 
 
 {-| Get an item exactly at an `Offset`.
@@ -147,8 +147,8 @@ Returns `Nothing` if target segment is already evicted or somehow invalid.
 
 -}
 get : Offset -> Broker a -> Maybe a
-get offset (Broker broker) =
-    I.get offset broker
+get (Offset offsetInternal) (Broker broker) =
+    I.get offsetInternal broker
 
 
 {-| Update an item at an `Offset` of a `Broker`.
@@ -157,5 +157,5 @@ If target segment is already evicted or not-updatable (soon-to-be-evicted), the 
 
 -}
 update : Offset -> (a -> a) -> Broker a -> Broker a
-update offset transform (Broker broker) =
-    Broker (I.update offset transform broker)
+update (Offset offsetInternal) transform (Broker broker) =
+    Broker (I.update offsetInternal transform broker)

@@ -1,6 +1,6 @@
 module Broker.Internal exposing
     ( Config, configCtor, Segments, initSegments
-    , Cycle, SegmentIndex, InnerOffset, originOffset
+    , OffsetInternal, Cycle, SegmentIndex, InnerOffset, originOffset
     , append, read, readOldest, get, update, isEmpty, capacity, offsetToString
     )
 
@@ -14,7 +14,7 @@ module Broker.Internal exposing
 
 ## Offsets
 
-@docs Cycle, SegmentIndex, InnerOffset, originOffset
+@docs OffsetInternal, Cycle, SegmentIndex, InnerOffset, originOffset
 
 
 ## APIs
