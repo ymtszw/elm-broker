@@ -2,145 +2,57 @@ module MainExamples exposing (appendUpto, oldestReadableOffsetInString, suite)
 
 import Broker exposing (Broker)
 import Expect exposing (Expectation)
+import String exposing (fromInt)
 import Test exposing (..)
 
 
-suite : Test
-suite =
-    describe "Broker"
-        [ describe "initialize should work"
-            [ test "with valid inputs (2, 100)" <| \_ -> Broker.initialize 2 100 |> Broker.capacity |> Expect.equal 200
-            , test "with valid inputs (100, 100000)" <| \_ -> Broker.initialize 100 100000 |> Broker.capacity |> Expect.equal 10000000
-            , test "with rounded inputs (0, 100)" <| \_ -> Broker.initialize 0 100 |> Broker.capacity |> Expect.equal 200
-            , test "with rounded inputs (1, 100)" <| \_ -> Broker.initialize 1 100 |> Broker.capacity |> Expect.equal 200
-            , test "with rounded inputs (2, 1)" <| \_ -> Broker.initialize 2 1 |> Broker.capacity |> Expect.equal 200
-            , test "with rounded inputs (0, 1)" <| \_ -> Broker.initialize 0 1 |> Broker.capacity |> Expect.equal 200
-            , test "with rounded inputs (1, 1)" <| \_ -> Broker.initialize 1 1 |> Broker.capacity |> Expect.equal 200
-            , test "with rounded inputs (2, 100001)" <| \_ -> Broker.initialize 2 100001 |> Broker.capacity |> Expect.equal 200000
-            ]
-        , test "should be empty after initialize" <|
+initializeSuite : Test
+initializeSuite =
+    describe "initialize should work"
+        [ test "empty after initialize" <|
             \_ -> Broker.initialize 2 100 |> Broker.isEmpty |> Expect.true "Expected newly initialized Broker to be empty"
-        , describe "append should work indefinitely"
-            [ test "up to the capacity of the Broker (200 items)" <|
-                \_ ->
-                    Broker.initialize 2 100
-                        |> appendUpto 200 identity
-                        |> Expect.all
-                            [ oldestReadableOffsetInString >> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-                            , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00000001" ++ "00" ++ "00000")
-                            ]
-            , test "up to second cycle (300 items)" <|
-                \_ ->
-                    Broker.initialize 2 100
-                        |> appendUpto 300 identity
-                        |> Expect.all
-                            [ oldestReadableOffsetInString >> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-                            , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00000001" ++ "01" ++ "00000")
-                            ]
-            , test "for several cycles (10 * 200 = 2000 capacity, 12345 items)" <|
-                \_ ->
-                    Broker.initialize 10 200
-                        |> appendUpto 12345 identity
-                        |> Expect.all
-                            [ oldestReadableOffsetInString >> Expect.equal (Just ("00000005" ++ "01" ++ "00000"))
-                            , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal ("00000006" ++ "01" ++ "00091")
-                            ]
-            ]
-        , describe "oldestReadableOffset should work including fading segments (200 capacity)"
-            [ test "not appended" <| \_ -> Broker.initialize 2 100 |> oldestReadableOffsetInString |> Expect.equal Nothing
-            , test "append 1 time" <| \_ -> Broker.initialize 2 100 |> appendUpto 1 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 199 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 199 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 200 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 200 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 201 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 201 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 299 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 299 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 300 times" <| \_ -> Broker.initialize 2 100 |> appendUpto 300 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 301 times (1st segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 301 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
-            , test "append 399 times (1st segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 399 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
-            , test "append 400 times (1st segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 400 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
-            , test "append 401 times (2nd segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 401 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "00" ++ "00000"))
-            , test "append 499 times (2nd segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 499 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "00" ++ "00000"))
-            , test "append 500 times (2nd segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 500 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "00" ++ "00000"))
-            , test "append 501 times (3rd segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 501 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "01" ++ "00000"))
-            , test "append 601 times (4th segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 601 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000002" ++ "00" ++ "00000"))
-            , test "append 701 times (5th segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 701 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000002" ++ "01" ++ "00000"))
-            , test "append 801 times (6th segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 801 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000003" ++ "00" ++ "00000"))
-            ]
-        , describe "oldestReadableOffset should work including fading segments (10 * 200 = 2000 capacity)"
-            [ test "append 2200 times" <| \_ -> Broker.initialize 10 200 |> appendUpto 2200 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "00" ++ "00000"))
-            , test "append 2201 times (1st segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 2201 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
-            , test "append 2300 times (1st segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 2300 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
-            , test "append 2400 times (1st segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 2400 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "01" ++ "00000"))
-            , test "append 2401 times (2nd segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 2401 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "02" ++ "00000"))
-            , test "append 4000 times (9th segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 4000 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000000" ++ "09" ++ "00000"))
-            , test "append 4001 times (10th segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 4001 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000001" ++ "00" ++ "00000"))
-            , test "append 22000 times (99th segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 22000 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("00000009" ++ "09" ++ "00000"))
-            , test "append 22001 times (100th segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 22001 identity |> oldestReadableOffsetInString |> Expect.equal (Just ("0000000a" ++ "00" ++ "00000"))
-            ]
-        , describe "read/readOldest should work (200 capacity)"
-            [ test "readOldest (0 item)" <| \_ -> Broker.initialize 2 100 |> Broker.readOldest |> Expect.equal Nothing
-            , test "readOldest (1 item, no eviction)" <| \_ -> Broker.initialize 2 100 |> appendUpto 1 identity |> readAndAssertUpTo 1 (==)
-            , test "readOldest then read (2 items, no eviction)" <| \_ -> Broker.initialize 2 100 |> appendUpto 2 identity |> readAndAssertUpTo 2 (==)
-            , test "readOldest then read (99 items, no eviction)" <| \_ -> Broker.initialize 2 100 |> appendUpto 99 identity |> readAndAssertUpTo 99 (==)
-            , test "readOldest then read (100 items, no eviction)" <| \_ -> Broker.initialize 2 100 |> appendUpto 100 identity |> readAndAssertUpTo 100 (==)
-            , test "readOldest then read (101 items, no eviction)" <| \_ -> Broker.initialize 2 100 |> appendUpto 101 identity |> readAndAssertUpTo 101 (==)
-            , test "readOldest then read (199 items, no eviction)" <| \_ -> Broker.initialize 2 100 |> appendUpto 199 identity |> readAndAssertUpTo 199 (==)
-            , test "readOldest then read (200 items, no eviction)" <| \_ -> Broker.initialize 2 100 |> appendUpto 200 identity |> readAndAssertUpTo 200 (==)
-            , test "readOldest then read (201 items, no eviction)" <| \_ -> Broker.initialize 2 100 |> appendUpto 201 identity |> readAndAssertUpTo 201 (==)
-            , test "readOldest then read (299 items, no eviction)" <| \_ -> Broker.initialize 2 100 |> appendUpto 299 identity |> readAndAssertUpTo 299 (==)
-            , test "readOldest then read (300 items, no eviction)" <| \_ -> Broker.initialize 2 100 |> appendUpto 300 identity |> readAndAssertUpTo 300 (==)
-            , test "readOldest then read (301 items, 1st segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 301 identity |> readAndAssertUpTo 201 (==)
-            , test "readOldest then read (350 items, 1st segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 350 identity |> readAndAssertUpTo 250 (==)
-            , test "readOldest then read (399 items, 1st segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 399 identity |> readAndAssertUpTo 299 (==)
-            , test "readOldest then read (400 items, 1st segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 400 identity |> readAndAssertUpTo 300 (==)
-            , test "readOldest then read (401 items, 2nd segment evicted)" <| \_ -> Broker.initialize 2 100 |> appendUpto 401 identity |> readAndAssertUpTo 201 (==)
-            ]
-        , describe "read/readOldest should work (10 * 200 = 2000 capacity)"
-            [ test "readOldest then read (2199 items, no eviction)" <| \_ -> Broker.initialize 10 200 |> appendUpto 2199 identity |> readAndAssertUpTo 2199 (==)
-            , test "readOldest then read (2200 items, no eviction)" <| \_ -> Broker.initialize 10 200 |> appendUpto 2200 identity |> readAndAssertUpTo 2200 (==)
-            , test "readOldest then read (2201 items, 1st segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 2201 identity |> readAndAssertUpTo 2001 (==)
-            , test "readOldest then read (4000 items, 9th segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 4000 identity |> readAndAssertUpTo 2200 (==)
-            , test "readOldest then read (4001 items, 10th segment evicted)" <| \_ -> Broker.initialize 10 200 |> appendUpto 4001 identity |> readAndAssertUpTo 2001 (==)
-            ]
-        , describe "get should work"
-            [ test "readOldest then get should yield exactly the same item" <|
-                \_ ->
-                    Broker.initialize 2 100
-                        |> appendUpto 1 identity
-                        |> assertBeforeAfter Broker.readOldest
-                            (\broker ( item, offset ) -> Broker.get offset broker |> Expect.equal (Just item))
-            , test "readOldest, read, then get should yield the last read item" <|
-                \_ ->
-                    Broker.initialize 2 100
-                        |> appendUpto 2 identity
-                        |> assertBeforeAfter
-                            (\broker -> broker |> Broker.readOldest |> Maybe.andThen (\( _, offset ) -> Broker.read offset broker))
-                            (\broker ( item, offset ) -> Broker.get offset broker |> Expect.equal (Just item))
-            ]
-        , describe "update should work"
-            [ test "update oldest then get should yield updated oldest item" <|
-                \_ ->
-                    Broker.initialize 2 100
-                        |> appendUpto 1 identity
-                        |> assertBeforeAfter Broker.readOldest
-                            (\broker ( item, offset ) ->
-                                broker
-                                    |> Broker.update offset ((+) 10)
-                                    |> Broker.get offset
-                                    |> Expect.equal (Just (item + 10))
-                            )
-            , test "items in fading segment should not be updated" <|
-                \_ ->
-                    Broker.initialize 2 100
-                        |> appendUpto 201 identity
-                        |> assertBeforeAfter Broker.readOldest
-                            (\broker ( item, offset ) ->
-                                broker
-                                    |> Broker.update offset ((+) 10)
-                                    |> Broker.get offset
-                                    |> Expect.equal (Just item)
-                            )
-            ]
+        , testInitialize 2 100 200
+        , testInitialize 100 100000 10000000
+        , testInitialize 0 100 200
+        , testInitialize 1 100 200
+        , testInitialize 2 1 200
+        , testInitialize 0 1 200
+        , testInitialize 1 1 200
+        , testInitialize 2 100001 200000
         ]
+
+
+testInitialize : Int -> Int -> Int -> Test
+testInitialize numSegments segmentSize expectCapacity =
+    test ("numSegments: " ++ fromInt numSegments ++ ", segmentSize: " ++ fromInt segmentSize) <|
+        \_ ->
+            Broker.initialize numSegments segmentSize |> Broker.capacity |> Expect.equal expectCapacity
+
+
+appendSuite : Test
+appendSuite =
+    describe "append should work indefinitely"
+        [ testAppend ( 2, 100 ) 200 ( "00000000" ++ "00" ++ "00000", "00000001" ++ "00" ++ "00000" )
+        , testAppend ( 2, 100 ) 300 ( "00000000" ++ "00" ++ "00000", "00000001" ++ "01" ++ "00000" )
+        , testAppend ( 10, 200 ) 12345 ( "00000005" ++ "01" ++ "00000", "00000006" ++ "01" ++ "00091" )
+        ]
+
+
+testAppend : ( Int, Int ) -> Int -> ( String, String ) -> Test
+testAppend ( numSegments, segmentSize ) upTo ( expectOldest, expectNext ) =
+    test ("up to " ++ fromInt upTo ++ " (" ++ fromInt numSegments ++ "*" ++ fromInt segmentSize ++ " capacity)") <|
+        \_ ->
+            Broker.initialize numSegments segmentSize
+                |> appendUpto upTo identity
+                |> Expect.all
+                    [ oldestReadableOffsetInString >> Expect.equal (Just expectOldest)
+                    , Broker.nextOffsetToWrite >> Broker.offsetToString >> Expect.equal expectNext
+                    ]
+
+
+oldestReadableOffsetInString : Broker a -> Maybe String
+oldestReadableOffsetInString =
+    Broker.oldestReadableOffset >> Maybe.map Broker.offsetToString
 
 
 appendUpto : Int -> (Int -> a) -> Broker a -> Broker a
@@ -150,6 +62,97 @@ appendUpto count itemGenerator broker =
 
     else
         appendUpto (count - 1) itemGenerator (Broker.append (itemGenerator count) broker)
+
+
+fadingSuite200 : Test
+fadingSuite200 =
+    describe "oldestReadableOffset should work including fading segments (200 capacity)"
+        [ test "not appended" <| \_ -> Broker.initialize 2 100 |> oldestReadableOffsetInString |> Expect.equal Nothing
+        , testFading ( 2, 100 ) 1 ("00000000" ++ "00" ++ "00000")
+        , testFading ( 2, 100 ) 199 ("00000000" ++ "00" ++ "00000")
+        , testFading ( 2, 100 ) 200 ("00000000" ++ "00" ++ "00000")
+        , testFading ( 2, 100 ) 201 ("00000000" ++ "00" ++ "00000")
+        , testFading ( 2, 100 ) 299 ("00000000" ++ "00" ++ "00000")
+        , testFading ( 2, 100 ) 300 ("00000000" ++ "00" ++ "00000")
+        , testFading ( 2, 100 ) 301 ("00000000" ++ "01" ++ "00000")
+        , testFading ( 2, 100 ) 399 ("00000000" ++ "01" ++ "00000")
+        , testFading ( 2, 100 ) 400 ("00000000" ++ "01" ++ "00000")
+        , testFading ( 2, 100 ) 401 ("00000001" ++ "00" ++ "00000")
+        , testFading ( 2, 100 ) 499 ("00000001" ++ "00" ++ "00000")
+        , testFading ( 2, 100 ) 500 ("00000001" ++ "00" ++ "00000")
+        , testFading ( 2, 100 ) 501 ("00000001" ++ "01" ++ "00000")
+        , testFading ( 2, 100 ) 601 ("00000002" ++ "00" ++ "00000")
+        , testFading ( 2, 100 ) 701 ("00000002" ++ "01" ++ "00000")
+        , testFading ( 2, 100 ) 801 ("00000003" ++ "00" ++ "00000")
+        ]
+
+
+testFading : ( Int, Int ) -> Int -> String -> Test
+testFading ( numSegments, segmentSize ) upTo expectOldest =
+    test ("up to " ++ fromInt upTo ++ " (" ++ fromInt numSegments ++ "*" ++ fromInt segmentSize ++ " capacity)") <|
+        \_ ->
+            Broker.initialize numSegments segmentSize
+                |> appendUpto upTo identity
+                |> oldestReadableOffsetInString
+                |> Expect.equal (Just expectOldest)
+
+
+fadingSuite2000 : Test
+fadingSuite2000 =
+    describe "oldestReadableOffset should work including fading segments (10 * 200 = 2000 capacity)"
+        [ testFading ( 10, 200 ) 2200 ("00000000" ++ "00" ++ "00000")
+        , testFading ( 10, 200 ) 2201 ("00000000" ++ "01" ++ "00000")
+        , testFading ( 10, 200 ) 2300 ("00000000" ++ "01" ++ "00000")
+        , testFading ( 10, 200 ) 2400 ("00000000" ++ "01" ++ "00000")
+        , testFading ( 10, 200 ) 2401 ("00000000" ++ "02" ++ "00000")
+        , testFading ( 10, 200 ) 4000 ("00000000" ++ "09" ++ "00000")
+        , testFading ( 10, 200 ) 4001 ("00000001" ++ "00" ++ "00000")
+        , testFading ( 10, 200 ) 22000 ("00000009" ++ "09" ++ "00000")
+        , testFading ( 10, 200 ) 22001 ("0000000a" ++ "00" ++ "00000")
+        ]
+
+
+readSuite200 : Test
+readSuite200 =
+    describe "read/readOldest should work (200 capacity)"
+        [ test "readOldest (0 item)" <| \_ -> Broker.initialize 2 100 |> Broker.readOldest |> Expect.equal Nothing
+        , testReadOldestAndRead ( 2, 100 ) 1 1
+        , testReadOldestAndRead ( 2, 100 ) 2 2
+        , testReadOldestAndRead ( 2, 100 ) 99 99
+        , testReadOldestAndRead ( 2, 100 ) 100 100
+        , testReadOldestAndRead ( 2, 100 ) 101 101
+        , testReadOldestAndRead ( 2, 100 ) 199 199
+        , testReadOldestAndRead ( 2, 100 ) 200 200
+        , testReadOldestAndRead ( 2, 100 ) 201 201
+        , testReadOldestAndRead ( 2, 100 ) 299 299
+        , testReadOldestAndRead ( 2, 100 ) 300 300
+        , testReadOldestAndRead ( 2, 100 ) 301 201
+        , testReadOldestAndRead ( 2, 100 ) 350 250
+        , testReadOldestAndRead ( 2, 100 ) 399 299
+        , testReadOldestAndRead ( 2, 100 ) 400 300
+        , testReadOldestAndRead ( 2, 100 ) 401 201
+        ]
+
+
+testReadOldestAndRead : ( Int, Int ) -> Int -> Int -> Test
+testReadOldestAndRead ( numSegments, segmentSize ) appendCount readCount =
+    let
+        description =
+            "readOldest/read "
+                ++ fromInt readCount
+                ++ " items ("
+                ++ fromInt numSegments
+                ++ "*"
+                ++ fromInt segmentSize
+                ++ " capacity, "
+                ++ fromInt appendCount
+                ++ " items)"
+    in
+    test description <|
+        \_ ->
+            Broker.initialize numSegments segmentSize
+                |> appendUpto appendCount identity
+                |> readAndAssertUpTo readCount (==)
 
 
 readAndAssertUpTo : Int -> (Int -> a -> Bool) -> Broker a -> Expectation
@@ -169,7 +172,9 @@ readAndAssertUpTo count evalItemAtRevIndex broker =
 readAndAssertUpTo_ : Int -> (Int -> a -> Bool) -> Broker a -> Broker.Offset -> Expectation
 readAndAssertUpTo_ count evalItemAtRevIndex broker offset =
     if count <= 0 then
-        Broker.read offset broker |> Expect.equal Nothing |> Expect.onFail "Expected to have consumed all readable items but still getting an item from `read`!"
+        Broker.read offset broker
+            |> Expect.equal Nothing
+            |> Expect.onFail "Expected to have consumed all readable items but still getting an item from `read`!"
 
     else
         case Broker.read offset broker of
@@ -189,6 +194,36 @@ failWithBrokerState broker message =
     Expect.fail (message ++ "\nBroker State: " ++ Debug.toString broker)
 
 
+readSuite2000 : Test
+readSuite2000 =
+    describe "read/readOldest should work (10 * 200 = 2000 capacity)"
+        [ testReadOldestAndRead ( 10, 200 ) 2199 2199
+        , testReadOldestAndRead ( 10, 200 ) 2200 2200
+        , testReadOldestAndRead ( 10, 200 ) 2201 2001
+        , testReadOldestAndRead ( 10, 200 ) 4000 2200
+        , testReadOldestAndRead ( 10, 200 ) 4001 2001
+        ]
+
+
+getSuite : Test
+getSuite =
+    describe "get should work"
+        [ test "readOldest then get should yield exactly the same item" <|
+            \_ ->
+                Broker.initialize 2 100
+                    |> appendUpto 1 identity
+                    |> assertBeforeAfter Broker.readOldest
+                        (\broker ( item, offset ) -> Broker.get offset broker |> Expect.equal (Just item))
+        , test "readOldest, read, then get should yield the last read item" <|
+            \_ ->
+                Broker.initialize 2 100
+                    |> appendUpto 2 identity
+                    |> assertBeforeAfter
+                        (\broker -> broker |> Broker.readOldest |> Maybe.andThen (\( _, offset ) -> Broker.read offset broker))
+                        (\broker ( item, offset ) -> Broker.get offset broker |> Expect.equal (Just item))
+        ]
+
+
 assertBeforeAfter :
     (Broker a -> Maybe ( a, Broker.Offset ))
     -> (Broker a -> ( a, Broker.Offset ) -> Expectation)
@@ -203,6 +238,43 @@ assertBeforeAfter initialOperation assertAfterOperation broker =
             failWithBrokerState broker "Initial operation did not yield Just value!"
 
 
-oldestReadableOffsetInString : Broker a -> Maybe String
-oldestReadableOffsetInString =
-    Broker.oldestReadableOffset >> Maybe.map Broker.offsetToString
+updateSuite : Test
+updateSuite =
+    describe "update should work"
+        [ test "update oldest then get should yield updated oldest item" <|
+            \_ ->
+                Broker.initialize 2 100
+                    |> appendUpto 1 identity
+                    |> assertBeforeAfter Broker.readOldest
+                        (\broker ( item, offset ) ->
+                            broker
+                                |> Broker.update offset ((+) 10)
+                                |> Broker.get offset
+                                |> Expect.equal (Just (item + 10))
+                        )
+        , test "items in fading segment should not be updated" <|
+            \_ ->
+                Broker.initialize 2 100
+                    |> appendUpto 201 identity
+                    |> assertBeforeAfter Broker.readOldest
+                        (\broker ( item, offset ) ->
+                            broker
+                                |> Broker.update offset ((+) 10)
+                                |> Broker.get offset
+                                |> Expect.equal (Just item)
+                        )
+        ]
+
+
+suite : Test
+suite =
+    describe "Broker"
+        [ initializeSuite
+        , appendSuite
+        , fadingSuite200
+        , fadingSuite2000
+        , readSuite200
+        , readSuite2000
+        , getSuite
+        , updateSuite
+        ]
