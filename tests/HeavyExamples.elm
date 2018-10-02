@@ -11,7 +11,7 @@ suite =
     describe "Broker"
         [ test "append should work indefinitely, above significantly more than the capacity of the Broker (takes around 100s)" <|
             \_ ->
-                Broker.initialize 2 100
+                Broker.initialize { numSegments = 2, segmentSize = 100 }
                     |> MainExamples.appendUpto 123456789 identity
                     |> Expect.all
                         [ MainExamples.oldestReadableOffsetInString >> Expect.equal (Just ("00096b42" ++ "01" ++ "00000"))

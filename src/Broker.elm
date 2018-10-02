@@ -54,17 +54,22 @@ type Offset
 
 
 
--- Internal type is represented as tuple for easier pattern match.
--- APIS
+-- APIs
 
 
 {-| Initializes a `Broker` with a set of configuration.
+
+  - `numSegments` - Number of internal segments. 2 &le; `numSegments` &le; 100
+  - `segmentSize` - Size of each segment. 100 &le; `segmentSize` &le; 100,000
+
+Constraints for these configurations are not yet studied well.
+
 -}
-initialize : Int -> Int -> Broker a
-initialize rawNumSegments rawSegmentSize =
+initialize : { numSegments : Int, segmentSize : Int } -> Broker a
+initialize { numSegments, segmentSize } =
     let
         config_ =
-            I.configCtor rawNumSegments rawSegmentSize
+            I.configCtor numSegments segmentSize
     in
     Broker
         { config = config_
