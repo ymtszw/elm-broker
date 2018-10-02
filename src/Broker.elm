@@ -2,7 +2,7 @@ module Broker exposing
     ( Broker, Offset
     , initialize, append, read, readOldest, get, update
     , decoder, encode
-    , capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString
+    , capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString, offsetFromString
     )
 
 {-| Apache Kafka-inspired data stream buffer.
@@ -25,7 +25,7 @@ module Broker exposing
 
 ## Monitoring means
 
-@docs capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString
+@docs capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString, offsetFromString
 
 -}
 
@@ -114,10 +114,26 @@ nextOffsetToWrite (Broker { offsetToWrite }) =
 
 
 {-| Converts an `Offset` into a sortable `String` representation.
+
+Also usable when you need to store and reload consumer offset.
+
 -}
 offsetToString : Offset -> String
 offsetToString (Offset offsetInternal) =
     I.offsetToString offsetInternal
+
+
+{-| Tries to convert a `String` into `Offset`.
+
+Can be used to reload consumer offset from external storage.
+
+Make sure that a reloaded `Offset` is used against the very `Broker`
+that produced that `Offset`.
+
+-}
+offsetFromString : String -> Maybe Offset
+offsetFromString str =
+    Maybe.map Offset (I.offsetFromString str)
 
 
 {-| Read a `Broker` by supplying previously read `Offset` (consumer offset),

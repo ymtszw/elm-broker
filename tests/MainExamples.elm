@@ -294,6 +294,32 @@ testEncodeAndDecode ( numSegments, segmentSize ) upTo =
                 |> Expect.equal (Ok broker)
 
 
+offsetToStringSuite : Test
+offsetToStringSuite =
+    describe "Offset should be converted to and from String"
+        [ testOffsetConversion ( 2, 100 ) 123456
+        , testOffsetConversion ( 10, 200 ) 123456
+        , testOffsetConversion ( 20, 100 ) 123456
+        , testOffsetConversion ( 2, 1000 ) 123456
+        ]
+
+
+testOffsetConversion : ( Int, Int ) -> Int -> Test
+testOffsetConversion ( numSegment, segmentSize ) upTo =
+    test (fromInt numSegment ++ "*" ++ fromInt segmentSize ++ " capacity, append " ++ fromInt upTo ++ " times") <|
+        \_ ->
+            let
+                offset =
+                    Broker.initialize numSegment segmentSize
+                        |> appendUpto upTo identity
+                        |> Broker.nextOffsetToWrite
+            in
+            offset
+                |> Broker.offsetToString
+                |> Broker.offsetFromString
+                |> Expect.equal (Just offset)
+
+
 suite : Test
 suite =
     describe "Broker"
@@ -306,4 +332,5 @@ suite =
         , getSuite
         , updateSuite
         , serializerSuite
+        , offsetToStringSuite
         ]

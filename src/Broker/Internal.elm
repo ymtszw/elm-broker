@@ -2,7 +2,8 @@ module Broker.Internal exposing
     ( BrokerInternal, Config, configCtor, Segments, initSegments
     , OffsetInternal, Cycle, SegmentIndex, InnerOffset, originOffset
     , encode, decoder
-    , append, read, readOldest, get, update, isEmpty, capacity, offsetToString
+    , isEmpty, capacity, offsetToString, offsetFromString
+    , append, read, readOldest, get, update
     )
 
 {-| Internal module.
@@ -23,9 +24,14 @@ module Broker.Internal exposing
 @docs encode, decoder
 
 
+## Monitoring means
+
+@docs isEmpty, capacity, offsetToString, offsetFromString
+
+
 ## APIs
 
-@docs append, read, readOldest, get, update, isEmpty, capacity, offsetToString
+@docs append, read, readOldest, get, update
 
 -}
 
@@ -259,10 +265,6 @@ type InnerOffset
     = InnerOffset Int
 
 
-
--- APIS
-
-
 initSegments : Config -> Segments a
 initSegments (Config (NumSegments numSegmentInt) _) =
     { active = Array.initialize numSegmentInt (always NotInitialized)
@@ -275,9 +277,195 @@ originOffset =
     ( Cycle 0, SegmentIndex 0, InnerOffset 0 )
 
 
+
+-- MONITORS
+
+
+isEmpty : BrokerInternal a -> Bool
+isEmpty { oldestReadableOffset } =
+    case oldestReadableOffset of
+        Just _ ->
+            False
+
+        Nothing ->
+            True
+
+
 capacity : Config -> Int
 capacity (Config (NumSegments numSegmentInt) (SegmentSize segmentSizeInt)) =
     numSegmentInt * segmentSizeInt
+
+
+offsetToString : OffsetInternal -> String
+offsetToString ( Cycle cycleInt, SegmentIndex segmentIndexInt, InnerOffset innerOffsetInt ) =
+    -- Cycle does not have max; up to 32bits
+    zeroPaddedHex 8 cycleInt
+        -- SegmentIndex is up to 100 < 8bits
+        ++ zeroPaddedHex 2 segmentIndexInt
+        -- InnerOffset is up to 100000 < 20bits
+        ++ zeroPaddedHex 5 innerOffsetInt
+
+
+zeroPaddedHex : Int -> Int -> String
+zeroPaddedHex digits =
+    toHex "" >> String.padLeft digits '0'
+
+
+toHex : String -> Int -> String
+toHex acc num =
+    if num < 16 then
+        toHexImpl num ++ acc
+
+    else
+        toHex (toHexImpl (modBy 16 num) ++ acc) (num // 16)
+
+
+toHexImpl : Int -> String
+toHexImpl numUpTo15 =
+    case numUpTo15 of
+        0 ->
+            "0"
+
+        1 ->
+            "1"
+
+        2 ->
+            "2"
+
+        3 ->
+            "3"
+
+        4 ->
+            "4"
+
+        5 ->
+            "5"
+
+        6 ->
+            "6"
+
+        7 ->
+            "7"
+
+        8 ->
+            "8"
+
+        9 ->
+            "9"
+
+        10 ->
+            "a"
+
+        11 ->
+            "b"
+
+        12 ->
+            "c"
+
+        13 ->
+            "d"
+
+        14 ->
+            "e"
+
+        15 ->
+            "f"
+
+        _ ->
+            -- Should not happen; Trapping by infinite loop!
+            toHexImpl numUpTo15
+
+
+offsetFromString : String -> Maybe OffsetInternal
+offsetFromString str =
+    Maybe.map3 (\a b c -> ( Cycle a, SegmentIndex b, InnerOffset c ))
+        (str |> String.left 8 |> fromHex ( 0, 1 ))
+        (str |> String.slice 8 10 |> fromHex ( 0, 1 ))
+        (str |> String.right 5 |> fromHex ( 0, 1 ))
+
+
+fromHex : ( Int, Int ) -> String -> Maybe Int
+fromHex ( acc, base ) hexStr =
+    if hexStr == "" then
+        -- Reject invalid string first
+        Nothing
+
+    else
+        case hexStr |> String.right 1 |> fromHexImpl of
+            Just numUpTo15 ->
+                let
+                    nextAcc =
+                        acc + base * numUpTo15
+                in
+                case String.slice 0 -1 hexStr of
+                    "" ->
+                        Just nextAcc
+
+                    nextHexStr ->
+                        fromHex ( nextAcc, base * 16 ) nextHexStr
+
+            Nothing ->
+                -- Invalid as Hex
+                Nothing
+
+
+fromHexImpl : String -> Maybe Int
+fromHexImpl nonEmptyHexStr =
+    case nonEmptyHexStr of
+        "0" ->
+            Just 0
+
+        "1" ->
+            Just 1
+
+        "2" ->
+            Just 2
+
+        "3" ->
+            Just 3
+
+        "4" ->
+            Just 4
+
+        "5" ->
+            Just 5
+
+        "6" ->
+            Just 6
+
+        "7" ->
+            Just 7
+
+        "8" ->
+            Just 8
+
+        "9" ->
+            Just 9
+
+        "a" ->
+            Just 10
+
+        "b" ->
+            Just 11
+
+        "c" ->
+            Just 12
+
+        "d" ->
+            Just 13
+
+        "e" ->
+            Just 14
+
+        "f" ->
+            Just 15
+
+        _ ->
+            Nothing
+
+
+
+-- APIs
 
 
 {-| Append an item to a Broker.
@@ -409,101 +597,6 @@ initSegmentWithFirstItem (SegmentSize segmentSizeInt) item =
                         Empty
 
 
-isEmpty : BrokerInternal a -> Bool
-isEmpty { oldestReadableOffset } =
-    case oldestReadableOffset of
-        Just _ ->
-            False
-
-        Nothing ->
-            True
-
-
-offsetToString : OffsetInternal -> String
-offsetToString ( Cycle cycleInt, SegmentIndex segmentIndexInt, InnerOffset innerOffsetInt ) =
-    -- Cycle does not have max; up to 32bits
-    zeroPaddedHex 8 cycleInt
-        -- SegmentIndex is up to 100 < 8bits
-        ++ zeroPaddedHex 2 segmentIndexInt
-        -- InnerOffset is up to 100000 < 20bits
-        ++ zeroPaddedHex 5 innerOffsetInt
-
-
-zeroPaddedHex : Int -> Int -> String
-zeroPaddedHex digits =
-    toHex "" >> String.padLeft digits '0'
-
-
-toHex : String -> Int -> String
-toHex acc num =
-    if num < 16 then
-        toHexImpl num ++ acc
-
-    else
-        toHex (toHexImpl (modBy 16 num) ++ acc) (num // 16)
-
-
-toHexImpl : Int -> String
-toHexImpl numUpTo15 =
-    case numUpTo15 of
-        0 ->
-            "0"
-
-        1 ->
-            "1"
-
-        2 ->
-            "2"
-
-        3 ->
-            "3"
-
-        4 ->
-            "4"
-
-        5 ->
-            "5"
-
-        6 ->
-            "6"
-
-        7 ->
-            "7"
-
-        8 ->
-            "8"
-
-        9 ->
-            "9"
-
-        10 ->
-            "a"
-
-        11 ->
-            "b"
-
-        12 ->
-            "c"
-
-        13 ->
-            "d"
-
-        14 ->
-            "e"
-
-        15 ->
-            "f"
-
-        _ ->
-            -- Should not happen; Trapping by infinite loop!
-            toHexImpl numUpTo15
-
-
-offsetOlderThan : OffsetInternal -> OffsetInternal -> Bool
-offsetOlderThan ( Cycle c1, SegmentIndex si1, InnerOffset io1 ) ( Cycle c2, SegmentIndex si2, InnerOffset io2 ) =
-    ( c1, si1, io1 ) < ( c2, si2, io2 )
-
-
 read : OffsetInternal -> BrokerInternal a -> Maybe ( a, OffsetInternal )
 read consumerOffset ({ config, oldestReadableOffset } as broker) =
     case oldestReadableOffset of
@@ -542,6 +635,11 @@ readIfTargetOffsetIsReadable oldestReadableOffset targetOffset broker =
     else
         -- The Offset equals to current write pointer, OR somehow overtook it
         Nothing
+
+
+offsetOlderThan : OffsetInternal -> OffsetInternal -> Bool
+offsetOlderThan ( Cycle c1, SegmentIndex si1, InnerOffset io1 ) ( Cycle c2, SegmentIndex si2, InnerOffset io2 ) =
+    ( c1, si1, io1 ) < ( c2, si2, io2 )
 
 
 readAtSurelyReadableOffset : OffsetInternal -> BrokerInternal a -> Maybe ( a, OffsetInternal )
