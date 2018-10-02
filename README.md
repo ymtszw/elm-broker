@@ -46,6 +46,6 @@ $ elm-test tests/MainTest.elm # only light-weight tests
 
 ## License
 
-&copy; Copyright 2018 [Yu Matsuzawa](https://github.com/ymtszw)
+Copyright &copy; 2018, [Yu Matsuzawa](https://github.com/ymtszw)
 
 BSD-3-Clause
