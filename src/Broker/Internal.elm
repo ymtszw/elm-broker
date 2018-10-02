@@ -1,6 +1,7 @@
 module Broker.Internal exposing
-    ( Config, configCtor, Segments, initSegments
+    ( BrokerInternal, Config, configCtor, Segments, initSegments
     , OffsetInternal, Cycle, SegmentIndex, InnerOffset, originOffset
+    , encode, decoder
     , append, read, readOldest, get, update, isEmpty, capacity, offsetToString
     )
 
@@ -9,12 +10,17 @@ module Broker.Internal exposing
 
 ## Types
 
-@docs Config, configCtor, Segments, initSegments
+@docs BrokerInternal, Config, configCtor, Segments, initSegments
 
 
 ## Offsets
 
 @docs OffsetInternal, Cycle, SegmentIndex, InnerOffset, originOffset
+
+
+## Decoder/Encoder
+
+@docs encode, decoder
 
 
 ## APIs
@@ -24,6 +30,8 @@ module Broker.Internal exposing
 -}
 
 import Array exposing (Array)
+import Json.Decode as D exposing (Decoder)
+import Json.Encode as E
 
 
 
@@ -39,10 +47,46 @@ type alias BrokerInternal a =
     }
 
 
+encode : (a -> E.Value) -> BrokerInternal a -> E.Value
+encode encodeItem broker =
+    E.object
+        [ ( "config", encodeConfig broker.config )
+        , ( "segments", encodeSegments encodeItem broker.segments )
+        , ( "oldestReadableOffset", Maybe.withDefault E.null (Maybe.map encodeOffset broker.oldestReadableOffset) )
+        , ( "oldestUpdatableOffset", encodeOffset broker.oldestUpdatableOffset )
+        , ( "offsetToWrite", encodeOffset broker.offsetToWrite )
+        ]
+
+
+decoder : Decoder a -> Decoder (BrokerInternal a)
+decoder itemDecoder =
+    D.map5 BrokerInternal
+        (D.field "config" configDecoder)
+        (D.field "segments" (segmentsDecoder itemDecoder))
+        (D.field "oldestReadableOffset" (D.maybe offsetDecoder))
+        (D.field "oldestUpdatableOffset" offsetDecoder)
+        (D.field "offsetToWrite" offsetDecoder)
+
+
 type alias Segments a =
     { active : Array (Segment a)
     , fading : Maybe (Segment a)
     }
+
+
+encodeSegments : (a -> E.Value) -> Segments a -> E.Value
+encodeSegments encodeItem segments =
+    E.object
+        [ ( "active", E.array (encodeSegment encodeItem) segments.active )
+        , ( "fading", Maybe.withDefault E.null (Maybe.map (encodeSegment encodeItem) segments.fading) )
+        ]
+
+
+segmentsDecoder : Decoder a -> Decoder (Segments a)
+segmentsDecoder itemDecoder =
+    D.map2 Segments
+        (D.field "active" (D.array (segmentDecoder itemDecoder)))
+        (D.field "fading" (D.maybe (segmentDecoder itemDecoder)))
 
 
 {-| Here we introduce two two-state types, Segment and Item,
@@ -51,6 +95,57 @@ in order to differentiate segment states from Maybe values returned by Array API
 type Segment a
     = NotInitialized
     | Segment (Array (Item a))
+
+
+encodeSegment : (a -> E.Value) -> Segment a -> E.Value
+encodeSegment encodeItem segment =
+    case segment of
+        NotInitialized ->
+            E.string "NotInitialized"
+
+        Segment itemArray ->
+            let
+                encodeArrayItem item =
+                    case item of
+                        Empty ->
+                            E.object [ ( "tag", E.string "Empty" ) ]
+
+                        Item a ->
+                            E.object [ ( "tag", E.string "Item" ), ( "item", encodeItem a ) ]
+            in
+            E.array encodeArrayItem itemArray
+
+
+segmentDecoder : Decoder a -> Decoder (Segment a)
+segmentDecoder itemDecoder =
+    let
+        arrayItemDecoder =
+            D.field "tag" D.string
+                |> D.andThen
+                    (\tag ->
+                        case tag of
+                            "Empty" ->
+                                D.succeed Empty
+
+                            "Item" ->
+                                D.map Item (D.field "item" itemDecoder)
+
+                            _ ->
+                                D.fail ("Corrupted Segment Item tag: " ++ tag)
+                    )
+    in
+    D.oneOf
+        [ D.andThen
+            (\tag ->
+                if tag == "NotInitialized" then
+                    D.succeed NotInitialized
+
+                else
+                    D.fail ("Corrupted Segment tag: " ++ tag)
+            )
+            D.string
+        , D.map Segment (D.array arrayItemDecoder)
+        ]
 
 
 type Item a
@@ -65,6 +160,18 @@ type Config
 configCtor : Int -> Int -> Config
 configCtor numSegmentsInt segmentSizeInt =
     Config (numSegmentsCtor numSegmentsInt) (segmentSizeCtor segmentSizeInt)
+
+
+encodeConfig : Config -> E.Value
+encodeConfig (Config (NumSegments numSegments) (SegmentSize segmentSize)) =
+    E.object [ ( "numSegments", E.int numSegments ), ( "segmentSize", E.int segmentSize ) ]
+
+
+configDecoder : Decoder Config
+configDecoder =
+    D.map2 Config
+        (D.field "numSegments" (D.map NumSegments D.int))
+        (D.field "segmentSize" (D.map SegmentSize D.int))
 
 
 type NumSegments
@@ -121,6 +228,23 @@ maxSegmentSize =
 
 type alias OffsetInternal =
     ( Cycle, SegmentIndex, InnerOffset )
+
+
+encodeOffset : OffsetInternal -> E.Value
+encodeOffset ( Cycle cycle, SegmentIndex segmentIndex, InnerOffset innerOffset ) =
+    E.object
+        [ ( "cycle", E.int cycle )
+        , ( "segmentIndex", E.int segmentIndex )
+        , ( "innerOffset", E.int innerOffset )
+        ]
+
+
+offsetDecoder : Decoder OffsetInternal
+offsetDecoder =
+    D.map3 (\a b c -> ( a, b, c ))
+        (D.field "cycle" (D.map Cycle D.int))
+        (D.field "segmentIndex" (D.map SegmentIndex D.int))
+        (D.field "innerOffset" (D.map InnerOffset D.int))
 
 
 type Cycle
@@ -465,6 +589,7 @@ getFromSegmentAtSurelyReadableInnerOffset (InnerOffset innerOffsetInt) segment =
 
         _ ->
             -- Should not happen; There must be an Item at readable innerOffset
+            -- This may change if delete API is introduced
             Nothing
 
 

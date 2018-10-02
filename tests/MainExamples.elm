@@ -2,6 +2,8 @@ module MainExamples exposing (appendUpto, oldestReadableOffsetInString, suite)
 
 import Broker exposing (Broker)
 import Expect exposing (Expectation)
+import Json.Decode
+import Json.Encode
 import String exposing (fromInt)
 import Test exposing (..)
 
@@ -266,6 +268,32 @@ updateSuite =
         ]
 
 
+serializerSuite : Test
+serializerSuite =
+    describe "encode/decoder should work"
+        [ testEncodeAndDecode ( 2, 100 ) 0
+        , testEncodeAndDecode ( 2, 100 ) 200
+        , testEncodeAndDecode ( 2, 100 ) 201
+        , testEncodeAndDecode ( 2, 100 ) 301
+        , testEncodeAndDecode ( 10, 2000 ) 12345
+        ]
+
+
+testEncodeAndDecode : ( Int, Int ) -> Int -> Test
+testEncodeAndDecode ( numSegments, segmentSize ) upTo =
+    test (fromInt numSegments ++ "*" ++ fromInt segmentSize ++ " items, appended " ++ fromInt upTo ++ " times") <|
+        \_ ->
+            let
+                broker =
+                    Broker.initialize numSegments segmentSize
+                        |> appendUpto upTo identity
+            in
+            broker
+                |> Broker.encode Json.Encode.int
+                |> Json.Decode.decodeValue (Broker.decoder Json.Decode.int)
+                |> Expect.equal (Ok broker)
+
+
 suite : Test
 suite =
     describe "Broker"
@@ -277,4 +305,5 @@ suite =
         , readSuite2000
         , getSuite
         , updateSuite
+        , serializerSuite
         ]

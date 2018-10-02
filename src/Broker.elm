@@ -1,6 +1,7 @@
 module Broker exposing
     ( Broker, Offset
     , initialize, append, read, readOldest, get, update
+    , decoder, encode
     , capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString
     )
 
@@ -17,6 +18,11 @@ module Broker exposing
 @docs initialize, append, read, readOldest, get, update
 
 
+## Decoder/Encoder
+
+@docs decoder, encode
+
+
 ## Monitoring means
 
 @docs capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString
@@ -24,6 +30,8 @@ module Broker exposing
 -}
 
 import Broker.Internal as I
+import Json.Decode as D exposing (Decoder)
+import Json.Encode as E
 
 
 
@@ -33,13 +41,7 @@ import Broker.Internal as I
 {-| Data stream buffer.
 -}
 type Broker a
-    = Broker
-        { config : I.Config
-        , segments : I.Segments a
-        , oldestReadableOffset : Maybe I.OffsetInternal
-        , oldestUpdatableOffset : I.OffsetInternal
-        , offsetToWrite : I.OffsetInternal
-        }
+    = Broker (I.BrokerInternal a)
 
 
 {-| Global offset within a `Broker`.
@@ -159,3 +161,27 @@ If target segment is already evicted or not-updatable (soon-to-be-evicted), the 
 update : Offset -> (a -> a) -> Broker a -> Broker a
 update (Offset offsetInternal) transform (Broker broker) =
     Broker (I.update offsetInternal transform broker)
+
+
+{-| Decode JS value into Broker. You must supply Decoder for items.
+
+Paired with `encode`, you can "dump and reload" exisiting Broker.
+
+-}
+decoder : Decoder a -> Decoder (Broker a)
+decoder itemDecoder =
+    D.map Broker (I.decoder itemDecoder)
+
+
+{-| Encode Broker into JS value. You must supply encode function for items.
+
+Paired with `decoder`, you can "dump and reload" exisitng Broker.
+
+Do note that, this function naively encodes internal structure of Broker into JS values,
+which may require non-ignorable amount of work (both in encode and decode) if capacity of the Broker is big.
+More sophisticated "resume" behavior might be needed later.
+
+-}
+encode : (a -> E.Value) -> Broker a -> E.Value
+encode encodeItem (Broker broker) =
+    I.encode encodeItem broker
