@@ -48,7 +48,7 @@ Wrapping `Offset`s in phantom types is a possible technique to enforce this rest
 Install Elm Platform.
 
 ```sh
-$ elm-package install
+$ elm make
 $ elm-test                    # full test
 $ elm-test tests/MainTest.elm # only light-weight tests
 ```
