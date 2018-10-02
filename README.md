@@ -14,19 +14,15 @@ Data stream buffer for Elm application, inspired by [Apache Kafka](https://kafka
 
 ## Expected Usage
 
-- A `Broker` accepts incoming data stream. <sup>&dagger;</sup>
+- A `Broker` accepts incoming data stream. &dagger;
 - Several **consumers** reads ("pulls") data from the `Broker` individually, while maintaining each `Offset` as their internal states.
 - Consumers perform arbitrary operations against acquired data, then read `Broker` again after previous `Offset`. Rinse and repeat.
-
-<small><small>
 
 &dagger;
 It is possible to have multiple `Broker`s in your application for different purposes,
 however you must be careful so that you do not mix up `Offset`s produced from one `Broker` to ones from others.
 Since `Offset`s are only valid for their generating `Broker`.
 Wrapping `Offset`s in phantom types is a possible technique to enforce this restriction.
-
-</small></small>
 
 ## Remarks
 
@@ -37,12 +33,6 @@ Wrapping `Offset`s in phantom types is a possible technique to enforce this rest
       which is potentially inefficient for big-capacity `Broker`s.
     - Bulk append and bulk read
     - Callback mechanism around `Segment` eviction
-- Although bulk read is possible feature to add, do note that consumers may perform **arbitrary** operation against data,
-  meaning that some consumers may require longer time than others.
-    - If bulk reads (thus chunked consumer operations) are allowed, it could lead to the situation
-      where some consumers "lock" entire application until their long-running operations are done.
-    - In that sense one-by-one read (or smaller bulk read) could promote better interleaving of consumer operations.
-    - Anyway these considerations are just off-my-head things that may be flipped or scrapped at any moment.
 
 ## Development
 

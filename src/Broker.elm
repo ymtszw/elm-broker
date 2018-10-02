@@ -5,7 +5,7 @@ module Broker exposing
     , capacity, isEmpty, oldestReadableOffset, nextOffsetToWrite, offsetToString
     )
 
-{-| Apache Kafka-inspired timeseries data container.
+{-| Apache Kafka-inspired data stream buffer.
 
 
 ## Types
@@ -165,7 +165,7 @@ update (Offset offsetInternal) transform (Broker broker) =
 
 {-| Decode JS value into Broker. You must supply Decoder for items.
 
-Paired with `encode`, you can "dump and reload" exisiting Broker.
+Paired with `encode`, you can "dump and reload" an exisiting Broker.
 
 -}
 decoder : Decoder a -> Decoder (Broker a)
@@ -175,7 +175,7 @@ decoder itemDecoder =
 
 {-| Encode Broker into JS value. You must supply encode function for items.
 
-Paired with `decoder`, you can "dump and reload" exisitng Broker.
+Paired with `decoder`, you can "dump and reload" an exisitng Broker.
 
 Do note that, this function naively encodes internal structure of Broker into JS values,
 which may require non-ignorable amount of work (both in encode and decode) if capacity of the Broker is big.
