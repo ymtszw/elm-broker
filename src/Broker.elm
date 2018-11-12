@@ -150,6 +150,14 @@ Currently it assumes Brokers cannot be reconfigured.
 This means, if the `Offset` is produced from the same `Broker`,
 it can never overtake the current write pointer or become out of bound of the `Broker`.
 
+If the `Offset` happens to be invalid (used against a different Broker),
+it fast-forwards to the latest readable `Offset` and succeeds (or `Nothing` if it is empty).
+This allows "hard reconfiguraiton" with some damage done and smallest computation (only reads the latest one).
+
+You may "use" this behavior carefully, but do note that in the worst scenario,
+the consumer misses many items in the new Broker.
+Proper ("soft") reconfiguration may be introduced in future.
+
 -}
 read : Offset -> Broker a -> Maybe ( a, Offset )
 read (Offset offsetInternal) (Broker broker) =

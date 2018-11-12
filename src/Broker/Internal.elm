@@ -606,7 +606,8 @@ read consumerOffset ({ config, oldestReadableOffset } as broker) =
 
             else
                 -- Shuold not happen as long as Offsets are produced from targeting Broker
-                Nothing
+                -- "Fixing" by reading latestReadableOffset
+                readIfTargetOffsetIsReadable oro (latestReadableOffsetOfNonEmptyBroker broker) broker
 
         Nothing ->
             -- Broker is empty
@@ -622,6 +623,25 @@ offsetIsValid : Config -> OffsetInternal -> Bool
 offsetIsValid (Config (NumSegments numSegmentInt) (SegmentSize segmentSizeInt)) ( _, SegmentIndex segmentIndexInt, InnerOffset innerOffsetInt ) =
     -- Skipping 0 <= segmentIndexInt and 0 <= innerOffsetInt assertion since they are super unlikely to be False
     (segmentIndexInt < numSegmentInt) && (innerOffsetInt < segmentSizeInt)
+
+
+{-| "Decrement" offsetToWrite, used only internally for fixing incorrect consumer Offset.
+-}
+latestReadableOffsetOfNonEmptyBroker : BrokerInternal a -> OffsetInternal
+latestReadableOffsetOfNonEmptyBroker broker =
+    let
+        (Config (NumSegments ns) (SegmentSize ss)) =
+            broker.config
+    in
+    case broker.offsetToWrite of
+        ( Cycle c, SegmentIndex 0, InnerOffset 0 ) ->
+            ( Cycle (c - 1), SegmentIndex (ns - 1), InnerOffset (ss - 1) )
+
+        ( cycle, SegmentIndex si, InnerOffset 0 ) ->
+            ( cycle, SegmentIndex (si - 1), InnerOffset (ss - 1) )
+
+        ( cycle, segmentIndex, InnerOffset io ) ->
+            ( cycle, segmentIndex, InnerOffset (io - 1) )
 
 
 readIfTargetOffsetIsReadable : OffsetInternal -> OffsetInternal -> BrokerInternal a -> Maybe ( a, OffsetInternal )
